@@ -1,0 +1,8 @@
+version: '3.6'
+
+services:
+  build:
+    image: eu.gcr.io/halfpipe-io/sprcom/fs2-watermark
+    volumes:
+    - ..:/code
+    working_dir: /code

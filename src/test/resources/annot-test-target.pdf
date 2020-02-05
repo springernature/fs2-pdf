@@ -1,0 +1,107 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<<
+/Resources 6 0 R
+/Parent 3 0 R
+/Contents 5 0 R
+/MediaBox [0 0 600 800 ]
+/Type /Page
+/Annots [10 0 R ]
+>>
+endobj
+2 0 obj
+<<
+/Resources 6 0 R
+/Parent 3 0 R
+/Contents 5 0 R
+/MediaBox [0 0 600 800 ]
+/Type /Page
+/Annots [10 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Pages
+/Count 2
+/Kids [1 0 R 2 0 R ]
+>>
+endobj
+4 0 obj
+<<
+/Type /Catalog
+/Pages 3 0 R
+/Outlines 8 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 48
+>>
+stream
+BT
+  /F1 24 Tf
+  50 750 Td
+  (Hello World) Tj
+ET
+endstream
+endobj
+6 0 obj
+<<
+/ProcSet [/PDF /Text ]
+/Font <<
+/F1 7 0 R
+>>
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Name /F1
+/Encoding /MacRomanEncoding
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/Type /Outlines
+/Count 0
+>>
+endobj
+9 0 obj
+<<
+>>
+endobj
+10 0 obj
+<<
+/Border [0 0 0 ]
+/Contents (the annotation)
+/Rect [200 50 400 150 ]
+/Subtype /FreeText
+/Type /Annot
+>>
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000019 00000 n 
+0000000142 00000 n 
+0000000265 00000 n 
+0000000329 00000 n 
+0000000394 00000 n 
+0000000492 00000 n 
+0000000558 00000 n 
+0000000666 00000 n 
+0000000712 00000 n 
+0000000733 00000 n 
+trailer
+<<
+/Size 11
+/Root 4 0 R
+/Id [<FF1FE073E0365E226E145B0CC9CB0758> <FF1FE073E0365E226E145B0CC9CB0758> ]
+/Info 9 0 R
+>>
+startxref
+855
+%%EOF
