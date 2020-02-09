@@ -9,7 +9,7 @@ cleanup()
 
 trap cleanup EXIT
 
-# git checkout master
+git checkout master
 
 echo -e $github_ssh_key > ssh-key
 chmod 600 ssh-key
@@ -24,4 +24,4 @@ $(dirname $0)/pipeline-sbt.bash \
   'set credentials += Credentials("GnuPG Key ID", "gpg", "FFF0376ED1F7E2CEEB848ABC980AD6C6E2EB6AE2", "")' \
   'release with-defaults'
 
-# GIT_SSH_COMMAND='ssh -i ssh-key -o StrictHostKeyChecking=no' git push origin master
+GIT_SSH_COMMAND='ssh -i ssh-key -o StrictHostKeyChecking=no' git push origin master
