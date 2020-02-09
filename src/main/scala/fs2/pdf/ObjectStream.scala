@@ -10,7 +10,7 @@ extends ObjectStreamCodec
 
 private[pdf] trait ObjectStreamCodec
 {
-  import scodec.codecs.list
+  import scodec.codecs.{listOfN, provide}
 
   def encode(os: ObjectStream): (List[Long], List[Prim]) =
     os.objs.map(a => (a.index.number, a.data)).unzip
@@ -30,6 +30,7 @@ private[pdf] trait ObjectStreamCodec
     Codecs.ascii.long <~ Codecs.ws <~ Codecs.ascii.long.unit(0) <~ Codecs.ws
 
   implicit def Codec_ObjectStream: Codec[ObjectStream] =
-    (Codecs.manyTill(a => !a.bytes.headOption.exists(Codecs.isDigit))(number) ~ list(Prim.Codec_Prim))
+    Codecs.manyTill(a => !a.bytes.headOption.exists(Codecs.isDigit))(number)
+      .flatZip(numbers => listOfN(provide(numbers.size), Prim.Codec_Prim))
       .xmap(decode, encode _)
 }
