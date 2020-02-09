@@ -368,7 +368,7 @@ trait PrimCodec
     skipWs ~> inner <~ skipWs
 
   def Codec_Array: Codec[Array] =
-    (skipWs ~> bracketMany(char('['), char(']'))(lazily(trim(Codec_Prim)) <~ ws))
+    (skipWs ~> bracketMany(trim(char('[')), trim(char(']')))(lazily(trim(Codec_Prim)) <~ ws))
       .as[Array]
       .withContext("array")
 
