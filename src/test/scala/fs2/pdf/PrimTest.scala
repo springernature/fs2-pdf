@@ -15,6 +15,10 @@ extends Specification
   def decode[A: Decoder](in: BitVector): Either[String, A] =
     Decoder[A].decode(in).toEither.bimap(_.toString, _.value)
 
+  def testDecode[A: Decoder](raw: String, data: A): MatchResult[Any] =
+    decode[A](BitVector(raw.getBytes))
+      .must(beRight(data))
+
   def testAs[A](codec: Codec[A])(raw: String, data: A, encoded: String): MatchResult[Any] =
     codec
       .encode(data)
@@ -96,6 +100,24 @@ extends Specification
   "dict" >>
   testAs(Prim.Codec_Dict)(dict, dictTarget, dictTargetEncoded)
 
+  val dict2: String =
+    """5394 0 obj
+    |<< /Type /ObjStm /Filter /FlateDecode /First 1019 /Length 4180 /N 100
+    |>>
+    |""".stripMargin
+
+  val dict2Target: Prim.Dict =
+    Prim.dict(
+      "Type" -> Name("ObjStm"),
+      "Filter" -> Name("FlateDecode"),
+      "First" -> Number(1019),
+      "Length" -> Number(4180),
+      "N" -> Number(100),
+    )
+
+  "dict 2" >>
+  testDecode(dict2, Obj(Obj.Index(5394, 0), dict2Target))(Obj.codecPreStream)
+
   val escaped: String =
     "hello \\) parens"
 
@@ -129,4 +151,14 @@ extends Specification
 
   "obj" >>
   testWith(Obj.Codec_Obj)(obj, Obj(Obj.Index(10, 0), objTarget))
+
+  val emptyArray: String =
+    """<< /Fields
+    |[
+    |]
+    |>>
+    |""".stripMargin
+
+  "empty array" >>
+  testDecode(emptyArray, Prim.dict("Fields" -> Array(Nil)))(Prim.Codec_Dict)
 }
