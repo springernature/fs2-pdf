@@ -1,15 +1,12 @@
 team: sprcom
 pipeline: fs2-pdf
 slack_channel: '#sprcom-janitors'
-triggers:
-  - type: git
-    branch: bootstrap
 tasks:
-# - type: docker-compose
-#   name: test
-#   compose_file: ops/docker-compose.yml
-#   service: build
-#   command: ops/test.bash
+- type: docker-compose
+  name: test
+  compose_file: ops/docker-compose.yml
+  service: build
+  command: ops/test.bash
 - type: docker-compose
   manual_trigger: true
   name: publish
