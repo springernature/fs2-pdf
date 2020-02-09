@@ -70,7 +70,7 @@ extends XrefCodec
     Xref.Entry(Index.Compressed(obj, index), `type`)
 }
 
-case class ParsedXref(xref: Xref, data: ByteVector)
+case class ParsedXref(xref: Xref)
 
 trait XrefCodec
 {
@@ -119,13 +119,14 @@ trait XrefCodec
       .exmap(validateTrailer, a => Attempt.successful(a.data))
 
   def trailerKw: Codec[Unit] =
-    Codecs.constantLine("trailer")
+    Codecs.str("trailer") <~ Codecs.nlWs
 
   def Codec_Trailer: Codec[Trailer] =
     trailerKw ~> trailerDict <~ Codecs.nlWs
 
   def startxref: Codec[Long] =
-    Codecs.constantLine("startxref") ~> Codecs.ascii.long.withContext("startxref") <~ Codecs.newline
+    (Codecs.constantLine("startxref") ~> Codecs.ascii.long.withContext("startxref offset") <~ Codecs.newline)
+      .withContext("startxref")
 
   def table: Codec[Xref.Table] =
     range.withContext("range")

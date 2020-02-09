@@ -171,11 +171,11 @@ object Pdf
             state.error(s"broken stream for ${obj.index}: ${cause.messageWithContext}")
         }
       case Parsed.Raw(bytes) =>
-        AnalyzeObject.parseXref(bytes) match {
-          case Analyzed.Xref(xref, _) => state.xref(xref)
-          case Analyzed.Garbage(_) =>
-            Version.codec.decode(bytes.bits)
-              .fold(_ => state.error(s"garbage: $bytes"), _ => state)
+        NonObject.decoder.decode(bytes.bits).map(_.value) match {
+          case Attempt.Successful(Analyzed.Xref(xref)) => state.xref(xref)
+          // case Analyzed.Garbage(_) =>
+          //   Version.codec.decode(bytes.bits)
+          //     .fold(_ => state.error(s"garbage: $bytes"), _ => state)
           case _ =>
             state
         }

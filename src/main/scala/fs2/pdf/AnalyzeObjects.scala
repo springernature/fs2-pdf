@@ -3,9 +3,8 @@ package pdf
 
 import cats.effect.IO
 import fs2.{Pipe, Stream}
-import scodec.{Attempt, Codec, DecodeResult}
+import scodec.{Attempt, DecodeResult, Decoder, Err}
 import scodec.bits.{BitVector, ByteVector}
-import scodec.codecs.fallback
 
 sealed trait Analyzed
 
@@ -32,7 +31,7 @@ object Analyzed
   case class IndirectArray(array: pdf.IndirectArray)
   extends Analyzed
 
-  case class Xref(xref: pdf.Xref, data: Option[ByteVector])
+  case class Xref(xref: pdf.Xref)
   extends Analyzed
 
   case class XrefStream(xref: pdf.XrefStream)
@@ -41,17 +40,29 @@ object Analyzed
   case class StartXref(startxref: Long)
   extends Analyzed
 
+  case class Version(version: pdf.Version)
+  extends Analyzed
+
   case class Keep(obj: Obj, stream: Option[BitVector])
   extends Analyzed
 
   case class KeepUnparsable(index: Obj.Index, data: ByteVector)
   extends Analyzed
 
-  case class Garbage(data: ByteVector)
-  extends Analyzed
-
   case object Linearized
   extends Analyzed
+}
+
+object NonObject
+{
+  def decoder: Decoder[Analyzed] =
+    Decoder.choiceDecoder(
+      Xref.startxref.map(Analyzed.StartXref(_)),
+      Xref.Codec_Xref.map(Analyzed.Xref(_)),
+      Version.Codec_Version.map(Analyzed.Version(_)),
+    )
+      .decodeOnly
+      .withContext("non-object data")
 }
 
 object AnalyzeStream
@@ -119,22 +130,19 @@ object AnalyzeObject
       stats <- stream.fold(collectObjStats(obj))(_ => Attempt.successful(None))
     } yield rw :: stats.toList
 
-  def xrefDecoder: Codec[Either[Long, Xref]] =
-    fallback(Xref.startxref, Xref.Codec_Xref)
-
-  def parseXref(data: ByteVector): Analyzed =
-    xrefDecoder.decode(Codecs.removeComments(data).bits) match {
-      case Attempt.Successful(DecodeResult(Right(xref), _)) =>
-        Analyzed.Xref(xref, Some(data))
-      case Attempt.Successful(DecodeResult(Left(startxref), _)) =>
-        Analyzed.StartXref(startxref)
+  def parseRaw(data: ByteVector): Attempt[List[Analyzed]] =
+    Version.Codec_Version.decode(data.bits) match {
       case Attempt.Failure(_) =>
-        Analyzed.Garbage(data)
+        NonObject.decoder.decode(Codecs.removeComments(data).bits)
+          .map(a => List(a.value))
+          .mapErr { case e => Err(s"parsing raw: ${e.messageWithContext}\n${Codecs.sanitize(data)}\n") }
+      case Attempt.Successful(DecodeResult(result, _)) =>
+        Attempt.successful(List(Analyzed.Version(result)))
     }
 
   def parsed: Parsed => Attempt[List[Analyzed]] = {
     case Parsed.Raw(data) =>
-      Attempt.successful(parseXref(data)).map(List(_))
+      parseRaw(data)
     case Parsed.IndirectObj(obj, stream, _) =>
       parseObject(obj, stream)
     case Parsed.StreamObject(obj) =>
@@ -147,7 +155,7 @@ object AnalyzeObject
 object AnalyzeObjects
 {
   def analyze(parsed: Parsed): Stream[IO, List[Analyzed]] =
-    StreamUtil.attemptStream("failed to analyze object")(AnalyzeObject.parsed(parsed))
+    StreamUtil.attemptStream(s"failed to analyze object: $parsed")(AnalyzeObject.parsed(parsed))
 
   def analyzed: Pipe[IO, Parsed, Analyzed] =
     _

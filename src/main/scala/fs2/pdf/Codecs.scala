@@ -380,6 +380,9 @@ object Codecs
   def sanitizedLatin: Codec[String] =
     Codecs.latin.xmap(sanitizeNewlines, identity)
 
+  def sanitize(data: ByteVector): String =
+    sanitizedLatin.decode(data.bits).map(_.value).getOrElse("unparsable")
+
   val percent: ByteVector =
     ByteVector.fromByte('%')
 

@@ -8,11 +8,12 @@ case class Version(major: Int, minor: Int, binaryMarker: Option[ByteVector])
 
 object Version
 {
-  implicit def codec: Codec[Version] =
+  implicit def Codec_Version: Codec[Version] =
     Codecs.productCodec(
-      Codecs.constantString("%PDF-") ~>
-      (Codecs.ascii.int ~ (Codecs.constantString(".") ~> Codecs.ascii.int) <~ Codecs.newline) ~
-      (Codecs.constantString("%") ~> Codecs.opt(Codecs.line("binary marker")))
+      Codecs.str("%PDF-") ~>
+      (Codecs.ascii.int ~ (Codecs.constantString(".") ~> Codecs.ascii.int) <~ Codecs.nlWs) ~
+      (Codecs.str("%") ~> Codecs.opt(scodec.codecs.bytes) <~ Codecs.nlWs)
+        // Codecs.opt(Codecs.line("binary marker"))
     )
 
   def default: Version =

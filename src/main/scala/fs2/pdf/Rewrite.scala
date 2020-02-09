@@ -34,8 +34,8 @@ object Rewrite
       val trailer = sanitizeTrailer(NonEmptyList(h, t))
       Pull.output1(Part.Meta(trailer))
         .as(RewriteUpdate(state, trailer))
-    case _ =>
-      StreamUtil.failPull("no trailer")
+    case RewriteState(_, Nil) =>
+      StreamUtil.failPull("no trailers could be parsed")
   }
 
   def rewrite[A]

@@ -20,6 +20,7 @@ libraryDependencies ++= List(
   "io.chrisdavenport" %% "log4cats-noop" % log4catsVersion,
   "io.chrisdavenport" %% "log4cats-slf4j" % log4catsVersion,
   "co.fs2" %% "fs2-io" % "2.2.2" % Test,
+  "org.slf4j" % "slf4j-simple" % "1.7.28" % Test,
 )
 
 ThisBuild / organization := "com.springernature"
