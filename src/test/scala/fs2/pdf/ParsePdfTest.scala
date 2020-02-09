@@ -21,12 +21,11 @@ extends Specification
 
   def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
     StreamParser.objects(log)
-      .andThen(AnalyzeObjects.analyzed)
+      .andThen(Analyze.analyzed)
       .andThen(Rewrite(())(collect)(update))
 
   "parse pdf" >>
-  ProcessJarPdf.processWithIO("books/paid")(log => pipe(log)(_).compile.drain)
-    .value
+  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/paid")(pipe))
     .unsafeRunSync
-    .must(beRight)
+    .must_==(())
 }

@@ -2,7 +2,6 @@ package fs2
 package pdf
 
 import scodec.{Attempt, Codec, Err}
-import scodec.bits.ByteVector
 
 case class Trailer(size: BigDecimal, data: Prim.Dict)
 

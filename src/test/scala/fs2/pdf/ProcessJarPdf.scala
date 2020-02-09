@@ -25,4 +25,11 @@ object ProcessJarPdf
       (bytes, _) <- Jar.resourceStream(s"$doc.pdf")
       result <- EitherT.liftF(f(log)(bytes))
     } yield result
+
+  def ignoreError[A]
+  (thunk: EitherT[IO, JarError, Stream[IO, A]])
+  : IO[Unit] =
+    thunk
+      .getOrElse(Stream.empty)
+      .flatMap(_.compile.drain)
 }
