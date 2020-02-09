@@ -7,21 +7,12 @@ import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.ByteVector
 
-case class RewriteState[A](
-  imageSuccess: Boolean,
-  state: A,
-  trailers: List[Trailer],
-  imageErrors: List[ImageError],
-)
-{
-  def imageError(error: ImageError): RewriteState[A] =
-    copy(imageErrors = error :: imageErrors)
-}
+case class RewriteState[A](state: A, trailers: List[Trailer])
 
 object RewriteState
 {
   def cons[A](state: A): RewriteState[A] =
-    RewriteState(false, state, Nil, Nil)
+    RewriteState(state, Nil)
 }
 
 case class RewriteUpdate[A](state: A, trailer: Trailer)
@@ -38,20 +29,9 @@ object Rewrite
       )
     )
 
-  def parseVersion(data: ByteVector): Option[Part[Trailer]] =
-    Version.codec.decode(data.bits)
-      .toOption
-      .map(a => Part.Version(a.value))
-
-  def reportImageErrors(log: Log): List[ImageError] => IO[Unit] = {
-    case Nil => IO.unit
-    case errors => log.error(s"no image could be encoded: ${errors.mkString("; ")}")
-  }
-
-  def emitUpdate[A](log: Log): RewriteState[A] => Pull[IO, Part[Trailer], RewriteUpdate[A]] = {
-    case RewriteState(imageSuccess, state, h :: t, errors) =>
+  def emitUpdate[A]: RewriteState[A] => Pull[IO, Part[Trailer], RewriteUpdate[A]] = {
+    case RewriteState(state, h :: t) =>
       val trailer = sanitizeTrailer(NonEmptyList(h, t))
-      Pull.eval(reportImageErrors(log)(errors)).unlessA(imageSuccess) >>
       Pull.output1(Part.Meta(trailer))
         .as(RewriteUpdate(state, trailer))
     case _ =>
@@ -59,42 +39,38 @@ object Rewrite
   }
 
   def rewrite[A]
-  (log: Log)
   (initial: A)
   (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
   (in: Stream[IO, Analyzed])
   : Pull[IO, Part[Trailer], RewriteUpdate[A]] =
     StreamUtil.pullState(collect)(in)(RewriteState.cons(initial))
-      .flatMap(emitUpdate(log))
+      .flatMap(emitUpdate)
 
   def rewriteAndUpdate[A]
-  (log: Log)
   (initial: A)
   (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
   (update: RewriteUpdate[A] => Pull[IO, Part[Trailer], Unit])
   (in: Stream[IO, Analyzed])
   : Pull[IO, Part[Trailer], Unit] =
-    rewrite(log)(initial)(collect)(in)
+    rewrite(initial)(collect)(in)
       .flatMap(update)
 
   def apply[A]
-  (log: Log)
   (initial: A)
   (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
   (update: RewriteUpdate[A] => Pull[IO, Part[Trailer], Unit])
   : Pipe[IO, Analyzed, ByteVector] =
     _
-      .through(rewriteAndUpdate(log)(initial)(collect)(update)(_).stream)
+      .through(rewriteAndUpdate(initial)(collect)(update)(_).stream)
       .through(WritePdf.parts)
 
   def forState[A]
-  (log: Log)
   (initial: A)
   (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
   : Pipe[IO, Analyzed, A] =
     in => {
       val p = for {
-        result <- rewrite(log)(initial)(collect)(in).mapOutput(Left(_))
+        result <- rewrite(initial)(collect)(in).mapOutput(Left(_))
         _ <- Pull.output1(Right(result))
       } yield ()
       p.stream.collect { case Right(RewriteUpdate(s, _)) => s }
