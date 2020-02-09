@@ -12,8 +12,7 @@ object Version
     Codecs.productCodec(
       Codecs.str("%PDF-") ~>
       (Codecs.ascii.int ~ (Codecs.constantString(".") ~> Codecs.ascii.int) <~ Codecs.nlWs) ~
-      (Codecs.str("%") ~> Codecs.opt(scodec.codecs.bytes) <~ Codecs.nlWs)
-        // Codecs.opt(Codecs.line("binary marker"))
+      Codecs.opt(Codecs.str("%") ~> Codecs.line("binary marker"))
     )
 
   def default: Version =
