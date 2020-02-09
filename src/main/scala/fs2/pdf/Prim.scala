@@ -459,13 +459,13 @@ object Obj
 
   implicit def Codec_Obj: Codec[Obj] =
     Codecs.productCodec(
-      (Index.Codec_Index <~ Codecs.nlWs) ~
+      (Codecs.skipWs ~> Index.Codec_Index <~ Codecs.nlWs) ~
       Prim.Codec_Prim <~ (Codecs.nlWs <~ Codecs.str("endobj") <~ Codecs.nlWs)
     )
 
   def codecPreStream: Codec[Obj] =
     Codecs.productCodec(
-      (Index.Codec_Index <~ Codecs.ws) ~
+      (Codecs.skipWs ~> Index.Codec_Index <~ Codecs.ws) ~
       Prim.Codec_Prim <~ Codecs.ws
     )
 }

@@ -161,4 +161,16 @@ extends Specification
 
   "empty array" >>
   testDecode(emptyArray, Prim.dict("Fields" -> Array(Nil)))(Prim.Codec_Dict)
+
+  val nul: String =
+    """
+    |13122 0 obj
+    |<<
+    |/D [1512 0 R /XYZ 208 207 null ]
+    |>>
+    |endobj
+    |""".stripMargin
+
+  "null" >>
+  testDecode(nul, Obj(Obj.Index(13122, 0), Prim.dict()))(Obj.Codec_Obj)
 }

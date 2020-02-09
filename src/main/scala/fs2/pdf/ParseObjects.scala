@@ -128,7 +128,7 @@ object ParseObjects
         case Attempt.Successful(parsed) =>
           Stream.emits(parsed)
         case Attempt.Failure(cause) =>
-          StreamUtil.failStream(s"${cause.messageWithContext}; when parsing ${Codecs.sanitizedLatin.decode(text.bits)}")
+          StreamUtil.failStream(s"${cause.messageWithContext}; when parsing ${Codecs.sanitize(text)}")
       }
   }
 
