@@ -12,6 +12,8 @@ extends Specification
     state => {
       case Analyzed.Xref(Xref(_, trailer, _)) =>
         Pull.pure(state.copy(trailers = trailer :: state.trailers))
+      case Analyzed.XrefStream(XrefStream(_, trailer)) =>
+        Pull.pure(state.copy(trailers = trailer :: state.trailers))
       case _ =>
         Pull.pure(state)
     }
@@ -25,7 +27,7 @@ extends Specification
       .andThen(Rewrite(())(collect)(update))
 
   "parse pdf" >>
-  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/paid")(pipe))
+  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/arznei")(pipe))
     .unsafeRunSync
     .must_==(())
 }

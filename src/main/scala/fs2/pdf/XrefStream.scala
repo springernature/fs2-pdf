@@ -82,13 +82,14 @@ object XrefStreamCodec
     case _ => None
   }
 
-  def entryField[A](num: Int, width: BigDecimal)(dec: Codec[A]): Codec[A] =
-    dec.withContext(s"xref entry field $num ($width bytes)")
+  def entryField[A](num: Int, width: BigDecimal, default: A)(dec: => Codec[A]): Codec[A] =
+    if (width == 0) provide(default)
+    else dec.withContext(s"xref entry field $num ($width bytes)")
 
   def entryDecoder(width1: BigDecimal, width2: BigDecimal, width3: BigDecimal): Decoder[((Short, Long), Int)] =
-    entryField(1, width1)(ushort(width1.toInt * 8)) ~
-    entryField(2, width2)(ulong(width2.toInt * 8)) ~
-    entryField(3, width3)(uint(width3.toInt * 8))
+    entryField(1, width1, 1.toShort)(ushort(width1.toInt * 8)) ~
+    entryField(2, width2, 0L)(ulong(width2.toInt * 8)) ~
+    entryField(3, width3, 0)(uint(width3.toInt * 8))
 
   def tableDecoder(width1: BigDecimal, width2: BigDecimal, width3: BigDecimal)
   : (BigDecimal, BigDecimal) => Decoder[Xref.Table] =
