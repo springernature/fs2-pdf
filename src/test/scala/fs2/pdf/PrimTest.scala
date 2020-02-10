@@ -171,6 +171,9 @@ extends Specification
     |endobj
     |""".stripMargin
 
+  val nullTarget: Prim =
+    Prim.dict("D" -> Prim.array(Ref(1512, 0), Name("XYZ"), Number(208), Number(207), Null))
+
   "null" >>
-  testDecode(nul, Obj(Obj.Index(13122, 0), Prim.dict()))(Obj.Codec_Obj)
+  testDecode(nul, Obj(Obj.Index(13122, 0), nullTarget))(Obj.Codec_Obj)
 }

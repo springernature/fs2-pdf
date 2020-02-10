@@ -27,7 +27,7 @@ extends Specification
       .andThen(Rewrite(())(collect)(update))
 
   "parse pdf" >>
-  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/arznei")(pipe))
+  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/semi")(pipe))
     .unsafeRunSync
     .must_==(())
 }
