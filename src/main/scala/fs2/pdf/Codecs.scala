@@ -23,20 +23,29 @@ object Codecs
   val newlineByteVector: ByteVector =
     ByteVector.fromByte(newlineByte)
 
-  val linuxNewlineBytes: ByteVector =
+  val lfBytes: ByteVector =
     hex"0A"
 
-  val linuxNewlineByte: Byte =
-    linuxNewlineBytes.toByte()
+  val lfBits: BitVector =
+    lfBytes.bits
 
-  val windowsNewlineBytes: ByteVector =
-    hex"0D0A"
+  val lfByte: Byte =
+    lfBytes.toByte()
 
-  val macosNewlineBytes: ByteVector =
+  val crBytes: ByteVector =
     hex"0D"
 
-  val macosNewlineByte: Byte =
-    macosNewlineBytes.toByte()
+  val crBits: BitVector =
+    crBytes.bits
+
+  val crByte: Byte =
+    crBytes.toByte()
+
+  val crlfBytes: ByteVector =
+    hex"0D0A"
+
+  val crlfBits: BitVector =
+    crlfBytes.bits
 
   val spaceBytes: ByteVector =
     hex"20"
@@ -45,45 +54,48 @@ object Codecs
     hex"0B"
 
   val newlines: List[ByteVector] =
-    List(linuxNewlineBytes, windowsNewlineBytes, macosNewlineBytes)
+    List(lfBytes, crlfBytes, crBytes)
 
-  val linuxNewline: Codec[Unit] =
-    constant(linuxNewlineBytes)
+  val lf: Codec[Unit] =
+    constant(lfBytes)
 
-  val windowsNewline: Codec[Unit] =
-    constant(windowsNewlineBytes)
+  val cr: Codec[Unit] =
+    constant(crBytes)
 
-  val macosNewline: Codec[Unit] =
-    constant(macosNewlineBytes)
+  val crlf: Codec[Unit] =
+    constant(crlfBytes)
 
   val newline: Codec[Unit] =
-    choice(constant(linuxNewlineBytes), constant(windowsNewlineBytes), constant(macosNewlineBytes))
+    choice(constant(lfBytes), constant(crlfBytes), constant(crBytes))
 
   val newlineBytes: Decoder[ByteVector] =
     Decoder.choiceDecoder(
-      constant(linuxNewlineBytes).map(_ => linuxNewlineBytes),
-      constant(windowsNewlineBytes).map(_ => windowsNewlineBytes),
-      constant(macosNewlineBytes).map(_ => macosNewlineBytes),
+      constant(lfBytes).map(_ => lfBytes),
+      constant(crlfBytes).map(_ => crlfBytes),
+      constant(crBytes).map(_ => crBytes),
     )
 
   val newlineBits: Decoder[BitVector] =
     Decoder.choiceDecoder(
-      constant(linuxNewlineBytes).map(_ => linuxNewlineBytes.bits),
-      constant(windowsNewlineBytes).map(_ => windowsNewlineBytes.bits),
-      constant(macosNewlineBytes).map(_ => macosNewlineBytes.bits),
+      constant(lfBytes).map(_ => lfBytes.bits),
+      constant(crlfBytes).map(_ => crlfBytes.bits),
+      constant(crBytes).map(_ => crBytes.bits),
     )
 
   def stripNewline(bytes: ByteVector): ByteVector =
-    if (bytes.takeRight(2) == Codecs.windowsNewlineBytes) bytes.dropRight(2)
-    else if (bytes.takeRight(1) == Codecs.linuxNewlineBytes) bytes.dropRight(1)
-    else if (bytes.takeRight(1) == Codecs.macosNewlineBytes) bytes.dropRight(1)
+    if (bytes.takeRight(2) == Codecs.crlfBytes) bytes.dropRight(2)
+    else if (bytes.takeRight(1) == Codecs.lfBytes) bytes.dropRight(1)
+    else if (bytes.takeRight(1) == Codecs.crBytes) bytes.dropRight(1)
     else bytes
+
+  def stripNewlineBits(bits: BitVector): BitVector =
+    stripNewline(bits.bytes).bits
 
   val whitespaceBytes: Decoder[ByteVector] =
     Decoder.choiceDecoder(
-      constant(linuxNewlineBytes).map(_ => linuxNewlineBytes),
-      constant(windowsNewlineBytes).map(_ => windowsNewlineBytes),
-      constant(macosNewlineBytes).map(_ => macosNewlineBytes),
+      constant(lfBytes).map(_ => lfBytes),
+      constant(crlfBytes).map(_ => crlfBytes),
+      constant(crBytes).map(_ => crBytes),
       constant(spaceBytes).map(_ => spaceBytes),
       constant(tabBytes).map(_ => tabBytes),
     )
@@ -103,9 +115,9 @@ object Codecs
 
   val whitespace: Codec[Unit] =
     choice(
-      constant(linuxNewlineBytes),
-      constant(windowsNewlineBytes),
-      constant(macosNewlineBytes),
+      constant(lfBytes),
+      constant(crlfBytes),
+      constant(crBytes),
       constant(spaceBytes),
       constant(tabBytes),
     )
@@ -355,7 +367,7 @@ object Codecs
 
     def digits1: Codec[String] =
       digits.exmap(
-        a => if (a.isEmpty) fail("empty digits") else Attempt.successful(a),
+        a => if (a.isEmpty) fail("input does not start with a digit") else Attempt.successful(a),
         Attempt.successful,
       )
 

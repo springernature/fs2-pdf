@@ -28,14 +28,14 @@ object Generate
       .uncons1
       .flatMap {
         case Some((obj, tail)) =>
-          StreamUtil.attemptPull("failed to encode object")(Codecs.encode(obj))(
+          StreamUtil.attemptPullWith("failed to encode object")(Codecs.encode(obj))(
             bits =>
               Pull.output1(bits) >>
               encodeWithXref(trailer, start + bits.bytes.size)(generateXrefEntry(start)(obj.index) :: entries)(tail)
           )
         case None =>
           val encodeResult = Codecs.encode(generateXref(trailer, start, entries))
-          StreamUtil.attemptPull("failed to encode xref")(encodeResult)(Pull.output1)
+          StreamUtil.attemptPullWith("failed to encode xref")(encodeResult)(Pull.output1)
       }
 
   def header: String =

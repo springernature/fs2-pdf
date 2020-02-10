@@ -19,7 +19,7 @@ object StreamUtil
   def failPull[A, B](message: String): Pull[IO, A, B] =
     fail[Pull[IO, A, *], B](message)
 
-  def attemptPull[A, B, C]
+  def attemptPullWith[A, B, C]
   (message: String)
   (attempt: Attempt[A])
   (success: A => Pull[IO, B, C])
@@ -29,6 +29,12 @@ object StreamUtil
         e => failPull(s"$message: $e"),
         success,
       )
+
+  def attemptPull[A, B, C]
+  (message: String)
+  (attempt: Attempt[A])
+  : Pull[IO, B, A] =
+    attemptPullWith(message)(attempt)(Pull.pure)
 
   def attemptF[F[_], A]
   (message: String)

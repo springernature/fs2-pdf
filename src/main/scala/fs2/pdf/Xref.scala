@@ -97,8 +97,8 @@ trait XrefCodec
 
   def twoByteNewline: Codec[Unit] =
     choice(
-      Codecs.space.withContext("end space") <~ Codecs.linuxNewline.withContext("end newline"),
-      Codecs.windowsNewline.withContext("end newline"),
+      Codecs.space.withContext("end space") <~ Codecs.lf.withContext("end newline"),
+      Codecs.crlf.withContext("end newline"),
     )
 
   def entry: Codec[Xref.Entry] =

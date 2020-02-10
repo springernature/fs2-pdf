@@ -5,8 +5,7 @@ import cats.effect.IO
 import org.specs2.mutable.Specification
 import scodec.bits.ByteVector
 
-class ParsePdfTest
-extends Specification
+object ParseTest
 {
   def collect: RewriteState[Unit] => Analyzed => Pull[IO, Part[Trailer], RewriteState[Unit]] =
     state => {
@@ -21,13 +20,32 @@ extends Specification
   def update: RewriteUpdate[Unit] => Pull[IO, Part[Trailer], Unit] =
     update => Pull.output1(Part.Meta(update.trailer))
 
+}
+
+class ParsePdfTest
+extends Specification
+{
   def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
     StreamParser.objects(log)
       .andThen(Analyze.analyzed)
-      .andThen(Rewrite(())(collect)(update))
+      .andThen(Rewrite(())(ParseTest.collect)(ParseTest.update))
 
   "parse pdf" >>
   ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/semi")(pipe))
     .unsafeRunSync
     .must_==(())
+}
+
+class ParseObjsTest
+extends Specification
+{
+  def pipe: Log => Pipe[IO, Byte, Decoded] =
+    _ => StreamParser.decode
+
+  "parse pdf" >>
+  ProcessJarPdf.processWith("test-image")(pipe)
+    .semiflatMap(_.compile.toList)
+    .value
+    .unsafeRunSync
+    .must(beRight)
 }

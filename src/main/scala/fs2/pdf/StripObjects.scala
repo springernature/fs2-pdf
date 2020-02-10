@@ -43,7 +43,7 @@ object StripObjects
     codec.map(_ => ()).decodeOnly
 
   val newlineMarkers: List[Byte] =
-    List(Codecs.linuxNewlineByte, Codecs.macosNewlineByte)
+    List(Codecs.lfByte, Codecs.crByte)
 
   def findNewlineLeft(bytes: ByteVector, start: Long): Option[Long] = {
     @annotation.tailrec

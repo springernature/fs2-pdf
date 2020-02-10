@@ -37,7 +37,7 @@ trait IndirectObjCodec
     * @return stream start keyword codec
     */
   def streamStartKeyword: Codec[Unit] =
-    Codecs.str("stream") <~ choice(Codecs.linuxNewline, Codecs.windowsNewline)
+    Codecs.str("stream") <~ choice(Codecs.lf, Codecs.crlf)
 
   def streamBitLength(data: Prim): Attempt[Long] =
     ParseObjects.streamLength(data).map(_ * 8)
@@ -56,12 +56,12 @@ trait IndirectObjCodec
     for {
       end <- ParseObjects.endstreamIndex(bits)
       length <- streamBitLength(data)
-    } yield {
-      val payload =
-        if (length > end + 16) Codecs.stripNewline(bits.take(end).bytes).bits
-        else bits.take(length)
-      DecodeResult(payload, bits.drop(payload.size))
-    }
+      } yield {
+        val payload =
+          if (length > end + 16) Codecs.stripNewline(bits.take(end).bytes).bits
+          else bits.take(length)
+        DecodeResult(payload, bits.drop(payload.size))
+      }
 
   def streamPayload(data: Prim): Codec[BitVector] =
     Codec(bits, Decoder(stripStream(data) _))

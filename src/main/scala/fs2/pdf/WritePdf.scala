@@ -55,7 +55,7 @@ object WritePdf
   def encode(state: EncodeLog)
   : Part[Trailer] => Pull[IO, ByteVector, EncodeLog] = {
     case Part.Obj(obj) =>
-      StreamUtil.attemptPull("encoding object")(EncodedObj.indirect(obj)) {
+      StreamUtil.attemptPullWith("encoding object")(EncodedObj.indirect(obj)) {
         case EncodedObj(entry, bytes) =>
           Pull.output1(bytes).as(state.entry(entry))
       }
@@ -68,7 +68,7 @@ object WritePdf
   }
 
   def outputVersion(version: Version): Pull[IO, ByteVector, Long] =
-    StreamUtil.attemptPull("encode version")(Codecs.encodeBytes(version))(
+    StreamUtil.attemptPullWith("encode version")(Codecs.encodeBytes(version))(
       a => Pull.output1(a).as(a.size)
     )
 
@@ -78,7 +78,7 @@ object WritePdf
 
   def writeXref(entries: List[XrefObjMeta], trailer: Trailer, initialOffset: Long)
   : Pull[IO, ByteVector, Unit] =
-    StreamUtil.attemptPull("encoding xref")(encodeXref(entries, trailer, initialOffset))(Pull.output1)
+    StreamUtil.attemptPullWith("encoding xref")(encodeXref(entries, trailer, initialOffset))(Pull.output1)
 
   def pullParts(parts: Stream[IO, Part[Trailer]])(initialOffset: Long): Pull[IO, ByteVector, Unit] =
     StreamUtil.pullState(encode)(parts)(EncodeLog(Nil, None))
