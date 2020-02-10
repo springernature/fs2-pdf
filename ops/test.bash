@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-pipeline-sbt clean test
+pipeline-sbt fs2-pdf clean test
