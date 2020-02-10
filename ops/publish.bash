@@ -17,7 +17,7 @@ chmod 600 ssh-key
 echo -e $sf_ci_gpg_main | gpg --import
 echo -e $sf_ci_gpg_sub | gpg --import
 
-$(dirname $0)/pipeline-sbt.bash \
+pipeline-sbt \
   'set every javacOptions := List("--release", "8")' \
   'set every publishMavenStyle := true' \
   'set every publishTo := Some(Resolver.url("jfrog", url("https://springernature.jfrog.io/springernature/libs-release-local")))' \
