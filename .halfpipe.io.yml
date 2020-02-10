@@ -12,7 +12,7 @@ tasks:
   name: publish
   compose_file: ops/docker-compose.yml
   service: build
-  command: ops/publish.bash
+  command: \sf-ci-publish
   vars:
     artifactory_username: sprcom-artifactory
     artifactory_password: ((sprcom-artifactory.authtoken))
