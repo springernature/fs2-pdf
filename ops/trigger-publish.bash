@@ -46,7 +46,6 @@ then
   ask 'Publish job does not have new inputs'
 fi
 
-# next_test_build=$(f js -p fs2-pdf --json | jq '.[] | select(.name == "test") | .next_build')
 next_test_build=$(job_attr 'test' '.next_build')
 if [[ $next_test_build != 'null' ]]
 then
