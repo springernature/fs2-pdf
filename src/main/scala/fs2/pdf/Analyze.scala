@@ -21,8 +21,9 @@ object Analyze
   def analyzeOrFail(parsed: Parsed): Stream[IO, List[Analyzed]] =
     StreamUtil.attemptStream(s"failed to analyze object: $parsed")(analyze(parsed))
 
-  def analyzed: Pipe[IO, Parsed, Analyzed] =
+  def analyzed(log: Log): Pipe[IO, Parsed, Analyzed] =
     _
+      // .through(FilterDuplicates.pipe(log))
       .flatMap(analyzeOrFail)
       .flatMap(Stream.emits)
 }

@@ -7,15 +7,15 @@ import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.ByteVector
 
-case class RewriteState[A](state: A, trailers: List[Trailer])
+case class RewriteState[S](state: S, trailers: List[Trailer])
 
 object RewriteState
 {
-  def cons[A](state: A): RewriteState[A] =
+  def cons[S](state: S): RewriteState[S] =
     RewriteState(state, Nil)
 }
 
-case class RewriteUpdate[A](state: A, trailer: Trailer)
+case class RewriteUpdate[S](state: S, trailer: Trailer)
 
 object Rewrite
 {
@@ -29,7 +29,7 @@ object Rewrite
       )
     )
 
-  def emitUpdate[A]: RewriteState[A] => Pull[IO, Part[Trailer], RewriteUpdate[A]] = {
+  def emitUpdate[S]: RewriteState[S] => Pull[IO, Part[Trailer], RewriteUpdate[S]] = {
     case RewriteState(state, h :: t) =>
       val trailer = sanitizeTrailer(NonEmptyList(h, t))
       Pull.output1(Part.Meta(trailer))
@@ -38,36 +38,53 @@ object Rewrite
       StreamUtil.failPull("no trailers could be parsed")
   }
 
-  def rewrite[A]
-  (initial: A)
-  (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
-  (in: Stream[IO, Analyzed])
-  : Pull[IO, Part[Trailer], RewriteUpdate[A]] =
+  def rewrite[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
+  (in: Stream[IO, A])
+  : Pull[IO, Part[Trailer], RewriteUpdate[S]] =
     StreamUtil.pullState(collect)(in)(RewriteState.cons(initial))
       .flatMap(emitUpdate)
 
-  def rewriteAndUpdate[A]
-  (initial: A)
-  (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
-  (update: RewriteUpdate[A] => Pull[IO, Part[Trailer], Unit])
-  (in: Stream[IO, Analyzed])
+  def rewriteAndUpdate[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
+  (update: RewriteUpdate[S] => Pull[IO, Part[Trailer], Unit])
+  (in: Stream[IO, A])
   : Pull[IO, Part[Trailer], Unit] =
     rewrite(initial)(collect)(in)
       .flatMap(update)
 
-  def apply[A]
-  (initial: A)
-  (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
-  (update: RewriteUpdate[A] => Pull[IO, Part[Trailer], Unit])
-  : Pipe[IO, Analyzed, ByteVector] =
+  def apply[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
+  (update: RewriteUpdate[S] => Pull[IO, Part[Trailer], Unit])
+  : Pipe[IO, A, ByteVector] =
     _
       .through(rewriteAndUpdate(initial)(collect)(update)(_).stream)
       .through(WritePdf.parts)
 
-  def forState[A]
-  (initial: A)
-  (collect: RewriteState[A] => Analyzed => Pull[IO, Part[Trailer], RewriteState[A]])
-  : Pipe[IO, Analyzed, A] =
+  private[this]
+  def simpleCollect[S, A]
+  (collect: RewriteState[S] => A => (List[Part[Trailer]], RewriteState[S]))
+  (state: RewriteState[S])
+  (a: A)
+  : Pull[IO, Part[Trailer], RewriteState[S]] = {
+    val (part, newState) = collect(state)(a)
+    Pull.output(Chunk.seq(part)).as(newState)
+  }
+
+  def simple[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => (List[Part[Trailer]], RewriteState[S]))
+  (update: RewriteUpdate[S] => Part[Trailer])
+  : Pipe[IO, A, ByteVector] =
+    apply(initial)(simpleCollect(collect))(update.andThen(Pull.output1))
+
+  def forState[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
+  : Pipe[IO, A, S] =
     in => {
       val p = for {
         result <- rewrite(initial)(collect)(in).mapOutput(Left(_))
