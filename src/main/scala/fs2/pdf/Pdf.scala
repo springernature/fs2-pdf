@@ -158,8 +158,10 @@ object Pdf
     def processParsed(state: AssemblyState): Parsed => AssemblyState = {
       case Parsed.IndirectObj(obj @ Obj.tpe("XRef", data), Some(stream), _) =>
           XrefStream(data)(stream) match {
-          case Attempt.Successful(XrefStream(tables, trailer)) =>
-            state.xref(Xref(tables, trailer, 0))
+          case Attempt.Successful(XrefStream(h :: t, trailer)) =>
+            state.xref(Xref(NonEmptyList(h, t), trailer, 0))
+          case Attempt.Successful(XrefStream(Nil, _)) =>
+            state.error(s"broken xref stream for ${obj.index}: empty")
           case Attempt.Failure(cause) =>
             state.error(s"broken xref stream for ${obj.index}: ${cause.messageWithContext}")
         }

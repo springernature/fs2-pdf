@@ -39,6 +39,15 @@ extends PrimCodec
   case class Array(data: List[Prim])
   extends Prim
 
+  object Array
+  {
+    def refs(nums: Long*): Array =
+      Array(nums.map(refNum).toList)
+
+    def nums(nums: BigDecimal*): Array =
+      Array(nums.map(Number(_)).toList)
+  }
+
   case class Dict(data: Map[String, Prim])
   extends Prim
   {
@@ -183,9 +192,9 @@ extends PrimCodec
 
   object fontResources
   {
-    def unapply(prim: Prim): Option[(Dict, List[Long])] =
+    def unapply(prim: Prim): Option[Dict] =
       prim match {
-        case dict @ Dict(data) if data.contains("Font") => Some((dict, fonts.inRoot(prim).getOrElse(Nil)))
+        case dict @ Dict(data) if data.contains("Font") => Some(dict)
         case _ => None
       }
   }

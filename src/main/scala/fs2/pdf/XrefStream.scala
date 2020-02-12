@@ -75,11 +75,11 @@ object XrefStreamCodec
 {
   import scodec.codecs._
 
-  def parseEntry: ((Short, Long), Int) => Option[Xref.Entry] = {
-    case ((0, nextFree), generation) => Some(Xref.entry(nextFree, generation, Xref.EntryType.Free))
-    case ((1, offset), generation) => Some(Xref.entry(offset, generation, Xref.EntryType.InUse))
-    case ((2, number), index) => Some(Xref.compressed(number, index, Xref.EntryType.InUse))
-    case _ => None
+  def parseEntry: ((Short, Long), Int) => Attempt[Xref.Entry] = {
+    case ((0, nextFree), generation) => Attempt.successful(Xref.entry(nextFree, generation, Xref.EntryType.Free))
+    case ((1, offset), generation) => Attempt.successful(Xref.entry(offset, generation, Xref.EntryType.InUse))
+    case ((2, number), index) => Attempt.successful(Xref.compressed(number, index, Xref.EntryType.InUse))
+    case a => Codecs.fail(s"invalid xref stream entry: $a")
   }
 
   def entryField[A](num: Int, width: BigDecimal, default: A)(dec: => Codec[A]): Codec[A] =
@@ -92,11 +92,12 @@ object XrefStreamCodec
     entryField(3, width3, 0)(uint(width3.toInt * 8))
 
   def tableDecoder(width1: BigDecimal, width2: BigDecimal, width3: BigDecimal)
-  : (BigDecimal, BigDecimal) => Decoder[Xref.Table] =
+  : (BigDecimal, BigDecimal) => Decoder[Xref.Table] = {
     (offset, size) =>
-      listOfN(provide(size.toInt), entryDecoder(width1, width2, width3).map(parseEntry).decodeOnly)
-        .map(_.flatten)
+      val decoder = entryDecoder(width1, width2, width3)
+      Codecs.nelOfN(provide(size.toInt), decoder.emap(parseEntry).decodeOnly)
         .map(Xref.Table(offset.toLong, _))
+    }
 
   def decoder(
     offsets: List[(BigDecimal, BigDecimal)],

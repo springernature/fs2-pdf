@@ -18,7 +18,7 @@ extends Specification
   val page2ObjNumber: Int = 2
 
   def page1Obj: IndirectObj =
-    IndirectObj.nostream(page1ObjNumber, 0, Prim.dict(
+    IndirectObj.nostream(page1ObjNumber, Prim.dict(
       "Type" -> Prim.Name("Page"),
       "Contents" -> Prim.refT(contentObj),
       "MediaBox" -> Prim.array(Prim.num(0), Prim.num(0), Prim.num(600), Prim.num(800)),
@@ -28,7 +28,7 @@ extends Specification
     ))
 
   def page2Obj: IndirectObj =
-    IndirectObj.nostream(page2ObjNumber, 0, Prim.dict(
+    IndirectObj.nostream(page2ObjNumber, Prim.dict(
       "Type" -> Prim.Name("Page"),
       "Contents" -> Prim.refT(contentObj),
       "MediaBox" -> Prim.array(Prim.num(0), Prim.num(0), Prim.num(600), Prim.num(800)),
@@ -41,14 +41,14 @@ extends Specification
     List(Prim.Ref(page1ObjNumber, 0), Prim.Ref(page2ObjNumber, 0))
 
   def pagesObj: IndirectObj =
-    IndirectObj.nostream(3, 0, Prim.dict(
+    IndirectObj.nostream(3, Prim.dict(
       "Type" -> Prim.Name("Pages"),
       "Count" -> Prim.num(pages.length),
       "Kids" -> Prim.Array(pages),
     ))
 
   def catalogObj: IndirectObj =
-    IndirectObj.nostream(4, 0, Prim.dict(
+    IndirectObj.nostream(4, Prim.dict(
       "Type" -> Prim.Name("Catalog"),
       "Pages" -> Prim.refT(pagesObj),
       "Outlines" -> Prim.refT(outlinesObj),
@@ -67,13 +67,13 @@ extends Specification
     IndirectObj(Index(5, 0), Prim.dict("Length" -> Prim.num(contentStream.size)),  Some(contentStream.bits))
 
   def resourcesObj: IndirectObj =
-    IndirectObj.nostream(6, 0, Prim.dict(
+    IndirectObj.nostream(6, Prim.dict(
       "ProcSet" -> Prim.array(Prim.Name("PDF"), Prim.Name("Text")),
       "Font" -> Prim.dict("F1" -> Prim.refT(fontObj)),
     ))
 
   def fontObj: IndirectObj =
-    IndirectObj.nostream(7, 0, Prim.dict(
+    IndirectObj.nostream(7, Prim.dict(
       "Type" -> Prim.Name("Font"),
       "Subtype" -> Prim.Name("Type1"),
       "Name" -> Prim.Name("F1"),
@@ -82,16 +82,16 @@ extends Specification
     ))
 
   def outlinesObj: IndirectObj =
-    IndirectObj.nostream(8, 0, Prim.dict(
+    IndirectObj.nostream(8, Prim.dict(
       "Type" -> Prim.Name("Outlines"),
       "Count" -> Prim.num(0),
     ))
 
   def infoObj: IndirectObj =
-    IndirectObj.nostream(9, 0, Prim.dict())
+    IndirectObj.nostream(9, Prim.dict())
 
   def annotObj: IndirectObj =
-    IndirectObj.nostream(10, 0, Prim.dict(
+    IndirectObj.nostream(10, Prim.dict(
       "Type" -> Prim.Name("Annot"),
       "Subtype" -> Prim.Name("FreeText"),
       "Rect" -> Prim.array(Prim.num(200), Prim.num(50), Prim.num(400), Prim.num(150)),

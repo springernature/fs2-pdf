@@ -5,8 +5,7 @@ import cats.data.Validated
 import org.specs2.matcher.{Expectable, MatchFailure, MatchResult, MatchSuccess, Matcher}
 import org.specs2.mutable.Specification
 
-class ValidatePdfTest
-extends Specification
+object ValidatedMatcher
 {
   def beValid[A, B]: Matcher[Validated[A, B]] =
     new Matcher[Validated[A, B]] {
@@ -16,7 +15,13 @@ extends Specification
           case Validated.Invalid(_) => MatchFailure(s"${t.value} is invalid", s"${t.value} is invalid", t)
         }
     }
+}
+
+class ValidatePdfTest
+extends Specification
+{
+  import ValidatedMatcher.beValid
 
   // "validate" >>
-  // ProcessJarPdf.processWithIO("books/test-out")(StreamParser.validate).value.map(a => a.must(beRight(beValid))).unsafeRunSync
+  // ProcessJarPdf.processWithIO("books/broken-biomech")(StreamParser.validate).value.map(a => a.must(beRight(beValid))).unsafeRunSync
 }

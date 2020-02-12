@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets
 
 import scala.util.Try
 
+import cats.Foldable
+import cats.data.NonEmptyList
 import cats.implicits._
 import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder, Err}
 import scodec.bits.{BitVector, ByteVector, HexStringSyntax}
@@ -240,6 +242,17 @@ object Codecs
       )
 
   /**
+    * This function is consulted by listMultiplexed before trying to decode an element.
+    * Here we want to decode as many elements as possible until the 'end' condition succeeds, so we just return the
+    * whole vector if 'end' fails and an empty vector otherwise.
+    *
+    * @param in remaining input
+    * @return input for next element, remainder for later iterations
+    */
+  def demuxManyTill(end: BitVector => Boolean)(in: BitVector): (BitVector, BitVector) =
+    if (in.isEmpty || end(in)) (BitVector.empty, in) else (in, BitVector.empty)
+
+  /**
     * Decode as many elements of type A as possible, until the remaining input vector satisfies the condition 'end' or
     * is exhausted.
     * The end condition is optional if the input is exhausted, so if you want to enforce the end condition, use
@@ -248,23 +261,18 @@ object Codecs
     * @param end termination condition
     * @param main element codec
     */
-  def manyTill[A](end: BitVector => Boolean)(main: Codec[A]): Codec[List[A]] = {
-    /**
-      * This function is consulted by listMultiplexed before trying to decode an element.
-      * Here we want to decode as many elements as possible until the 'end' condition succeeds, so we just return the
-      * whole vector if 'end' fails and an empty vector otherwise.
-      *
-      * @param in remaining input
-      * @return input for next element, remainder for later iterations
-      */
-    def demux(in: BitVector): (BitVector, BitVector) =
-      if (in.isEmpty || end(in)) (BitVector.empty, in) else (in, BitVector.empty)
-    listMultiplexed(_ ++ _, demux, main).withContext("manyTill")
-  }
+  def manyTill[A](end: BitVector => Boolean)(main: Codec[A]): Codec[List[A]] =
+    listMultiplexed(_ ++ _, demuxManyTill(end), main).withContext("manyTill")
 
-  def manyTillCodec[A](end: Codec[Unit]): Codec[A] => Codec[List[A]] = {
+  def manyTillCodec[A](end: Codec[Unit]): Codec[A] => Codec[List[A]] =
     manyTill(end.decode(_).isSuccessful)
-  }
+
+  def manyTill1[A](end: BitVector => Boolean)(main: Codec[A]): Codec[NonEmptyList[A]] =
+    manyTill(end)(main)
+      .exmap(attemptNel("manyTill1"), a => Attempt.successful(a.toList))
+
+  def manyTill1Codec[A](end: Codec[Unit]): Codec[A] => Codec[NonEmptyList[A]] =
+    manyTill1(end.decode(_).isSuccessful)
 
   def bracket[A](start: Codec[Unit], end: Codec[Unit])(main: Codec[A]): Codec[A] =
     start ~> main <~ end
@@ -418,4 +426,11 @@ object Codecs
       }
     spin(bytes, ByteVector.empty)
   }
+
+  def attemptNel[T[_]: Foldable, A](desc: String)(as: T[A]): Attempt[NonEmptyList[A]] =
+    Attempt.fromOption(NonEmptyList.fromFoldable(as), Err(s"$desc: empty list"))
+
+  def nelOfN[A](countCodec: Codec[Int], valueCodec: Codec[A]): Codec[NonEmptyList[A]] =
+    listOfN(countCodec, valueCodec)
+      .exmap(attemptNel("nelOfN"), a => Attempt.successful(a.toList))
 }

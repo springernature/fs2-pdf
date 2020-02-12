@@ -10,8 +10,8 @@ case class IndirectObj(index: Obj.Index, data: Prim, stream: Option[BitVector])
 object IndirectObj
 extends IndirectObjCodec
 {
-  def nostream(number: Long, generation: Int, data: Prim): IndirectObj =
-    IndirectObj(Obj.Index(number, generation), data, None)
+  def nostream(number: Long, data: Prim): IndirectObj =
+    IndirectObj(Obj.Index(number, 0), data, None)
 
   def addLength(stream: BitVector): Prim => Prim = {
     case Prim.Dict(data) => Prim.Dict(data.updated("Length", Prim.Number(stream.bytes.size)))
@@ -21,8 +21,8 @@ extends IndirectObjCodec
   def ensureLength(stream: BitVector)(data: Prim): Prim =
     Prim.tryDict("Length")(data).as(data).getOrElse(addLength(stream)(data))
 
-  def stream(number: Long, generation: Int, data: Prim, stream: BitVector): IndirectObj =
-    IndirectObj(Obj.Index(number, generation), ensureLength(stream)(data), Some(stream))
+  def stream(number: Long, data: Prim, stream: BitVector): IndirectObj =
+    IndirectObj(Obj.Index(number, 0), ensureLength(stream)(data), Some(stream))
 }
 
 private[pdf]

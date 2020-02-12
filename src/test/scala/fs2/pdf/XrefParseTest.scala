@@ -3,6 +3,7 @@ package pdf
 
 import org.specs2.mutable.Specification
 import scodec.bits.BitVector
+import cats.data.NonEmptyList
 
 class XrefParseTest
 extends Specification
@@ -26,7 +27,7 @@ extends Specification
 
   val target: Xref =
     Xref(
-      List(Xref.Table(0, List(Xref.Entry(index, Xref.EntryType.InUse)))),
+      NonEmptyList.one(Xref.Table(0, NonEmptyList.one(Xref.Entry(index, Xref.EntryType.InUse)))),
       Trailer(1, Prim.dict("Size" -> Prim.num(1))),
       1,
     )

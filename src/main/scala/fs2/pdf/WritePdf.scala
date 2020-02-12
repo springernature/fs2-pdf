@@ -1,46 +1,60 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
 import cats.effect.IO
+import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.Attempt
 import scodec.bits.ByteVector
 
 object GenerateXref
 {
-  def xrefEntries(indexes: List[Obj.Index], sizes: List[Long], initialOffset: Long): List[(Long, Xref.Entry)] =
+  def xrefEntries(indexes: NonEmptyList[Obj.Index], sizes: NonEmptyList[Long], initialOffset: Long)
+  : NonEmptyList[(Long, Xref.Entry)] =
     indexes
-      .zip(EncodeMeta.offsets(initialOffset)(sizes))
+      .zipWith(EncodeMeta.offsets(initialOffset)(sizes))((_, _))
       .map { case (index, offset) => (index.number, EncodeMeta.objectXrefEntry(index, offset)) }
       .sortBy(_._1)
 
-  def padEntries(entries: List[(Long, Xref.Entry)]): List[Xref.Entry] =
+  def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] = {
+    val base = entries.head._1.toInt + 1
     entries
-      .foldLeft(Vector.empty[Xref.Entry]) {
+      .reduceLeftTo(a => NonEmptyList.one(a._2)) {
         case (z, (number, entry)) =>
-          (z ++ Vector.fill(number.toInt - z.size - 1)(Xref.Entry.dummy)).appended(entry)
+          NonEmptyList(entry, List.fill(number.toInt - z.size - base)(Xref.Entry.dummy)) ::: z
       }
-      .toList
+        .reverse
+  }
 
-  def deduplicateEntries(entries: List[(Long, Xref.Entry)]): List[(Long, Xref.Entry)] =
+  def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
     entries
-      .foldLeft(List.empty[(Long, Xref.Entry)]) {
-        case (Nil, (number, entry)) =>
-          List((number, entry))
-        case ((prevNumber, _) :: tail, (number, entry)) if prevNumber == number =>
-          (number, entry) :: tail
+      .reduceLeftTo(NonEmptyList.one(_)) {
+        case (NonEmptyList((prevNumber, _), tail), (number, entry)) if prevNumber == number =>
+          NonEmptyList((number, entry), tail)
         case (tail, h) =>
           h :: tail
       }
       .reverse
 
-  def apply(meta: List[XrefObjMeta], trailerDict: Trailer, initialOffset: Long): Xref = {
-    val sizes = meta.map(_.size)
+  def apply(
+    meta: NonEmptyList[XrefObjMeta],
+    trailerDict: Trailer,
+    initialOffset: Long,
+  ): Xref = {
     val indexes = meta.map(_.index)
-    val startxref = initialOffset + sizes.sum
+    val sizes = meta.map(_.size)
+    val startxref = initialOffset + sizes.toList.sum
     val entries = padEntries(deduplicateEntries(xrefEntries(indexes, sizes, initialOffset)))
-    val trailer = EncodeMeta.trailer(trailerDict, 0, None, entries.size + 1)
-    Xref(List(Xref.Table(0, Xref.Entry.freeHead :: entries)), trailer, startxref)
+    val firstNumber = meta.head.index.number
+    val fromZero = firstNumber == 1
+    val zeroIncrement = if (fromZero) 1 else 0
+    val trailer = EncodeMeta.trailer(trailerDict, 0, None, entries.size + zeroIncrement)
+    val withFree =
+      if (fromZero) Xref.Entry.freeHead :: entries
+      else entries
+    val tableOffset = if (fromZero) 0 else firstNumber
+    Xref(NonEmptyList.one(Xref.Table(tableOffset, withFree)), trailer, startxref)
   }
 }
 
@@ -68,41 +82,59 @@ object WritePdf
   }
 
   def outputVersion(version: Version): Pull[IO, ByteVector, Long] =
-    StreamUtil.attemptPullWith("encode version")(Codecs.encodeBytes(version))(
-      a => Pull.output1(a).as(a.size)
-    )
+    StreamUtil.attemptPullWith("encode version")(Codecs.encodeBytes(version))(a => Pull.output1(a).as(a.size))
 
-  def encodeXref(entries: List[XrefObjMeta], trailer: Trailer, initialOffset: Long)
+  def encodeXref(
+    entries: NonEmptyList[XrefObjMeta],
+    trailer: Trailer,
+    initialOffset: Long,
+  )
   : Attempt[ByteVector] =
     Codecs.encodeBytes(GenerateXref(entries, trailer, initialOffset))
 
-  def writeXref(entries: List[XrefObjMeta], trailer: Trailer, initialOffset: Long)
-  : Pull[IO, ByteVector, Unit] =
-    StreamUtil.attemptPullWith("encoding xref")(encodeXref(entries, trailer, initialOffset))(Pull.output1)
+  def writeXref(
+    entries: NonEmptyList[XrefObjMeta],
+    trailer: Trailer,
+    initialOffset: Long,
+  ): Pull[IO, ByteVector, Unit] = {
+    val attempt = encodeXref(entries, trailer, initialOffset)
+    StreamUtil.attemptPullWith("encoding xref")(attempt)(Pull.output1)
+  }
 
-  def pullParts(parts: Stream[IO, Part[Trailer]])(initialOffset: Long): Pull[IO, ByteVector, Unit] =
+  def pullParts
+  (parts: Stream[IO, Part[Trailer]])
+  (initialOffset: Long)
+  : Pull[IO, ByteVector, Long] =
     StreamUtil.pullState(encode)(parts)(EncodeLog(Nil, None))
       .flatMap {
-        case EncodeLog(entries, Some(trailer)) =>
-          writeXref(entries.reverse, trailer, initialOffset)
+        case EncodeLog(h :: t, Some(trailer)) =>
+          writeXref(NonEmptyList(h, t).reverse, trailer, initialOffset).as(0L)
+        case EncodeLog(Nil, _) =>
+          StreamUtil.failPull("no xref entries in parts stream")
         case EncodeLog(_, None) =>
           StreamUtil.failPull("no trailer in parts stream")
       }
 
-  def parts: Pipe[IO, Part[Trailer], ByteVector] =
-    _
+  def consumeVersion(parts: Stream[IO, Part[Trailer]]): Pull[IO, ByteVector, (Long, Stream[IO, Part[Trailer]])] =
+    parts
       .pull
       .uncons1
       .flatMap {
         case Some((Part.Version(version), tail)) =>
-          outputVersion(version).flatMap(pullParts(tail))
+          outputVersion(version).map((_, tail))
         case Some((head, tail)) =>
-          outputVersion(Version.default).flatMap(pullParts(Stream(head) ++ tail))
+          outputVersion(Version.default).map((_, Stream(head) ++ tail))
         case None =>
           StreamUtil.failPull("no elements in parts stream")
       }
+
+  def parts: Pipe[IO, Part[Trailer], ByteVector] =
+    consumeVersion(_)
+      .flatMap { case (offset, tail) => pullParts(tail)(offset) }
+      .void
       .stream
 
   def objects(trailer: Trailer): Pipe[IO, IndirectObj, ByteVector] =
     in => (in.map(Part.Obj(_)) ++ Stream(Part.Meta(trailer))).through(parts)
+
 }

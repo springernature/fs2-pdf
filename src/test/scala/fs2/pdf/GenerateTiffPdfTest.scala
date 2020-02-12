@@ -14,7 +14,7 @@ extends Specification
   import Prim._
 
   def page1Obj(image: IndirectObj): IndirectObj =
-    IndirectObj.nostream(1, 0, Prim.dict(
+    IndirectObj.nostream(1, Prim.dict(
       "Type" -> Prim.Name("Page"),
       "Contents" -> Prim.refT(image),
       "MediaBox" -> Prim.array(Prim.num(0), Prim.num(0), Prim.num(600), Prim.num(800)),
@@ -25,14 +25,14 @@ extends Specification
     List(Prim.Ref(1, 0))
 
   def pagesObj: IndirectObj =
-    IndirectObj.nostream(2, 0, Prim.dict(
+    IndirectObj.nostream(2, Prim.dict(
       "Type" -> Prim.Name("Pages"),
       "Count" -> Prim.num(pages.length),
       "Kids" -> Prim.Array(pages),
     ))
 
   def catalogObj: IndirectObj =
-    IndirectObj.nostream(3, 0, Prim.dict(
+    IndirectObj.nostream(3, Prim.dict(
       "Type" -> Prim.Name("Catalog"),
       "Pages" -> Prim.refT(pagesObj),
   ))

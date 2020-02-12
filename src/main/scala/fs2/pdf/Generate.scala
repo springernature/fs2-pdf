@@ -1,6 +1,7 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
@@ -14,7 +15,7 @@ object Generate
   def generateXref(trailer: Prim.Dict, startxref: Long, entries: List[(Long, Xref.Entry)]): Xref = {
     val sorted = entries.sortBy(_._1)
     val free = Xref.entry(0, 65535, Xref.EntryType.Free)
-    val tables = List(Xref.Table(0, free :: sorted.map(_._2)))
+    val tables = NonEmptyList.one(Xref.Table(0, NonEmptyList(free, sorted.map(_._2))))
     Xref(tables, Trailer(sorted.size + 1, trailer), startxref)
   }
 
@@ -39,7 +40,7 @@ object Generate
       }
 
   def header: String =
-    "%PDF-1.4\n%âãÏÓ\n"
+    "%PDF-1.7\n%âãÏÓ\n"
 
   def apply(trailer: Prim.Dict): Pipe[IO, IndirectObj, Byte] =
     in =>

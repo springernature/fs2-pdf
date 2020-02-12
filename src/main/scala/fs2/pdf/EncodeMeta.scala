@@ -1,6 +1,8 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
+
 case class XrefObjMeta(index: Obj.Index, size: Long)
 
 object EncodeMeta
@@ -15,7 +17,7 @@ object EncodeMeta
 
   def objectXrefTable: (Obj.Index, Long) => Xref.Table = {
     case (Obj.Index(number, generation), offset) =>
-      Xref.Table(number, List(xrefEntry(generation, offset)))
+      Xref.Table(number, NonEmptyList.one(xrefEntry(generation, offset)))
   }
 
   def trailerUpdate(previousSize: Long, startxref: Option[Long], newEntries: Int): Prim.Dict =
@@ -29,8 +31,11 @@ object EncodeMeta
   }
 
   def trailer(previousTrailer: Trailer, previousSize: Long, offset: Option[Long], newEntries: Int): Trailer =
-    Trailer(previousSize + newEntries, mergeTrailerDicts(trailerUpdate(previousSize, offset, newEntries))(previousTrailer))
+    Trailer(
+      previousSize + newEntries,
+      mergeTrailerDicts(trailerUpdate(previousSize, offset, newEntries))(previousTrailer),
+    )
 
-  def offsets(base: Long)(sizes: List[Long]): List[Long] =
-    sizes.scanLeft(base)(_ + _)
+  def offsets(base: Long)(sizes: NonEmptyList[Long]): NonEmptyList[Long] =
+    NonEmptyList(base, sizes.tail.scanLeft(base + sizes.head)(_ + _))
 }

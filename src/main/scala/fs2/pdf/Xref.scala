@@ -1,16 +1,18 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
+import cats.implicits._
 import scodec.{Attempt, Codec, Err}
 
 case class Trailer(size: BigDecimal, data: Prim.Dict)
 
-case class Xref(tables: List[Xref.Table], trailer: Trailer, startxref: Long)
+case class Xref(tables: NonEmptyList[Xref.Table], trailer: Trailer, startxref: Long)
 
 object Xref
 extends XrefCodec
 {
-  case class Table(offset: Long, entries: List[Xref.Entry])
+  case class Table(offset: Long, entries: NonEmptyList[Xref.Entry])
 
   case class Entry(index: Index, `type`: EntryType)
 
@@ -131,14 +133,14 @@ trait XrefCodec
     range.withContext("range")
       .flatZip { case (_, size) => listOfN(provide(size), entry).withContext("entries") }
       .withContext("table")
-      .xmap(
-        { case ((o, _), es) => Xref.Table(o, es) },
-        t => ((t.offset, t.entries.size), t.entries),
+      .exmap(
+        { case ((o, _), es) => Codecs.attemptNel("xref table entries")(es).map(e => Xref.Table(o, e)) },
+        t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
   implicit def Codec_Xref: Codec[Xref] =
     Codecs.productCodec(
-      Codecs.constantLine("xref") ~> Codecs.manyTillCodec(trailerKw)(table).withContext("xref tables") ~
+      Codecs.constantLine("xref") ~> Codecs.manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
       Codec_Trailer ~
       startxref <~
       Codecs.str("%%EOF") <~ optional(bitsRemaining, Codecs.nlWs).unit(Some(()))
