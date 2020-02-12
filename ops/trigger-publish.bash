@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-ref=${1:-master}
+ref=${1:-master} pipeline=$(2:-fs2-pdf)
 
 f()
 {
@@ -28,13 +28,13 @@ ask()
 job_attr()
 {
   local name=$1 query=$2 j=${3:-jq}
-  f js -p fs2-pdf --json | $j ".[] | select(.name == \"$name\") | $query"
+  f js -p $pipeline --json | $j ".[] | select(.name == \"$name\") | $query"
 }
 
 head=$(git rev-parse $ref)
 echo "Publishing from ref '$ref' at $head"
 
-latest_in_pipeline=$(f rvs -r fs2-pdf/git --json | js '.[0].version.ref')
+latest_in_pipeline=$(f rvs -r $pipeline/git --json | js '.[0].version.ref')
 if [[ $head != $latest_in_pipeline ]]
 then
   ask "HEAD is not the latest commit in concourse ($latest_in_pipeline)"
@@ -65,4 +65,4 @@ then
 fi
 
 echo 'Triggering publish job'
-f tj -j fs2-pdf/publish -w
+f tj -j $pipeline/publish -w
