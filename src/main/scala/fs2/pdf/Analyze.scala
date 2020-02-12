@@ -27,7 +27,7 @@ object Analyze
 
   def analyzed(log: Log): Pipe[IO, Parsed, Analyzed] =
     _
-      // .through(FilterDuplicates.pipe(log))
+      .through(FilterDuplicates.pipe(log))
       .flatMap(analyzeOrFail)
       .flatMap(Stream.emits)
 }

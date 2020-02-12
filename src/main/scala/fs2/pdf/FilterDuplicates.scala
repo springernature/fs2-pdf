@@ -7,10 +7,10 @@ import fs2.{Pipe, Stream}
 
 object FilterDuplicates
 {
-  case class State(nums: Set[Long], duplicates: Set[Long])
+  case class State(nums: Set[Long], duplicates: Set[Long], update: Boolean)
   {
     def push(num: Long): (Boolean, State) = {
-      val dupe = nums.contains(num)
+      val dupe = !update && nums.contains(num)
       (dupe, if (dupe) copy(duplicates = duplicates + num) else copy(nums = nums + num))
     }
   }
@@ -29,15 +29,19 @@ object FilterDuplicates
       check(state)(num, parsed)
     case parsed @ Parsed.Unparsable(Obj.Index(num, _), _) =>
       check(state)(num, parsed)
+    case parsed @ Parsed.Xref(_) =>
+      Pull.output1(parsed).as(state.copy(update = true))
+    case parsed @ Parsed.StartXref(_) =>
+      Pull.output1(parsed).as(state.copy(update = true))
     case parsed =>
       Pull.output1(parsed).as(state)
   }
 
   // TODO metric when duplicates are found
   def pullFilter(log: Log)(in: Stream[IO, Parsed]): Pull[IO, Parsed, Unit] =
-    StreamUtil.pullState(filter)(in)(State(Set.empty, Set.empty))
+    StreamUtil.pullState(filter)(in)(State(Set.empty, Set.empty, false))
       .flatMap {
-        case State(_, dupes) =>
+        case State(_, dupes, _) =>
           Pull.eval(log.debug("duplicate objects in pdf").whenA(dupes.nonEmpty))
       }
 
