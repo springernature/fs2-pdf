@@ -427,6 +427,9 @@ object Codecs
     spin(bytes, ByteVector.empty)
   }
 
+  def removeCommentsBits(bits: BitVector): BitVector =
+    removeComments(bits.bytes).bits
+
   def attemptNel[T[_]: Foldable, A](desc: String)(as: T[A]): Attempt[NonEmptyList[A]] =
     Attempt.fromOption(NonEmptyList.fromFoldable(as), Err(s"$desc: empty list"))
 

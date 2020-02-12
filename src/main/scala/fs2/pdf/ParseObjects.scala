@@ -8,7 +8,6 @@ import cats.implicits._
 import fs2.{Pipe, Stream}
 import scodec.{Attempt, Decoder, Err}
 import scodec.bits.{BitVector, ByteVector}
-import scodec.interop.cats._
 
 sealed trait Parsed
 
@@ -25,7 +24,13 @@ object Parsed
   case class Unparsable(index: Obj.Index, data: ByteVector)
   extends Parsed
 
-  case class Raw(bytes: ByteVector)
+  case class StartXref(startxref: Long)
+  extends Parsed
+
+  case class Xref(xref: pdf.Xref)
+  extends Parsed
+
+  case class Version(version: pdf.Version)
   extends Parsed
 
   def indirectObjs: Pipe[IO, Parsed, pdf.IndirectObj] =
@@ -36,11 +41,29 @@ object Parsed
           .map(pdf.IndirectObj(obj.index, obj.data, _))
       case StreamObject(obj) =>
         fs2.Stream(pdf.IndirectObj(obj.index, obj.data, None))
-      case Unparsable(_, _) =>
-        fs2.Stream.empty
-      case Raw(_) =>
+      case _ =>
         fs2.Stream.empty
     }
+}
+
+object ParseNonObject
+{
+  def withoutComments[A](inner: Decoder[A]): Decoder[A] =
+    Decoder(bits => inner.decode(Codecs.removeCommentsBits(bits)))
+
+  def decoder: Decoder[Parsed] =
+    Decoder.choiceDecoder(
+      withoutComments(Xref.startxref).map(Parsed.StartXref(_)),
+      withoutComments(Xref.Codec_Xref).map(Parsed.Xref(_)),
+      Version.Codec_Version.map(Parsed.Version(_)),
+    )
+      .decodeOnly
+      .withContext("non-object data")
+
+  def apply(data: ByteVector): Attempt[List[Parsed]] =
+    decoder.decode(data.bits)
+      .map(a => List(a.value))
+      .mapErr(e => Err(s"parsing raw: ${e.messageWithContext}\n${Codecs.sanitize(data)}\n"))
 }
 
 object ParseObjects
@@ -119,31 +142,39 @@ object ParseObjects
   def parseObject(text: ByteVector): Attempt[Obj] =
     Obj.codecPreStream.decode(text.bits).map(_.value)
 
-  def outputObjs(obj: Obj, stream: Option[Parsed.Stream], text: ByteVector, rawStream: Option[BitVector])
+  def outputObjs(obj: Obj, stream: Parsed.Stream, text: ByteVector, rawStream: BitVector)
   : Option[NonEmptyList[Parsed]] => List[Parsed] = {
     case Some(streamObjs) =>
       streamObjs.toList
     case None =>
-      List(Parsed.IndirectObj(obj, stream, text ++ rawStream.combineAll.bytes))
+      List(Parsed.IndirectObj(obj, Some(stream), text ++ rawStream.bytes))
   }
 
-  def processObject(text: ByteVector, rawStream: Option[BitVector]): Attempt[List[Parsed]] =
+  def contentObject(text: ByteVector, rawStream: BitVector): Attempt[List[Parsed]] =
     for {
       obj <- parseObject(text)
-      uncompressed <- rawStream.traverse(uncompressStream(obj.data))
-      streamObjs <- uncompressed.map(_.data).flatTraverse(extractStreamObjects(_)(obj.data))
+      uncompressed <- uncompressStream(obj.data)(rawStream)
+      streamObjs <- extractStreamObjects(uncompressed.data)(obj.data)
     } yield outputObjs(obj, uncompressed, text, rawStream)(streamObjs)
+
+  def dataObject(text: ByteVector): Attempt[Parsed] =
+    parseObject(text)
+      .map(Parsed.IndirectObj(_, None, text))
+
+  private[this] def multi(message: String)(parsed: Attempt[List[Parsed]]): Stream[IO, Parsed] =
+    StreamUtil.attemptStream(message)(parsed)
+      .flatMap(Stream.emits)
 
   def processChunk: ObjectChunk => Stream[IO, Parsed] = {
     case ObjectChunk.Text(bytes) =>
-      Stream.emit(Parsed.Raw(bytes))
-    case ObjectChunk.Object(_, text, stream) =>
-      processObject(text, stream) match {
-        case Attempt.Successful(parsed) =>
-          Stream.emits(parsed)
-        case Attempt.Failure(cause) =>
-          StreamUtil.failStream(s"${cause.messageWithContext}; when parsing ${Codecs.sanitize(text)}")
-      }
+      multi("parsing non-object")(ParseNonObject(bytes))
+    case ObjectChunk.DataObject(text) =>
+      StreamUtil.attemptStream("parsing data object")(dataObject(text))
+    case ObjectChunk.ContentObject(text, stream) =>
+      val parsed =
+        contentObject(text, stream)
+          .mapErr(e => Err(s"${e.messageWithContext}; when parsing ${Codecs.sanitize(text)}"))
+      multi("parsing content object")(parsed)
   }
 
   def pipe: Pipe[IO, ObjectChunk, Parsed] =

@@ -172,16 +172,14 @@ object Pdf
           case Attempt.Failure(cause) =>
             state.error(s"broken stream for ${obj.index}: ${cause.messageWithContext}")
         }
-      case Parsed.Raw(bytes) =>
-        AnalyzeNonObject.decoder.decode(bytes.bits).map(_.value) match {
-          case Attempt.Successful(Analyzed.Xref(xref)) => state.xref(xref)
-          case _ =>
-            state
-        }
+      case Parsed.Xref(xref) =>
+        state.xref(xref)
       case Parsed.StreamObject(obj) =>
         state.obj(PdfObj.Stream(obj))
       case Parsed.Unparsable(index, _) =>
         state.error(s"unparsable object: $index")
+      case _ =>
+        state
     }
 
     def processParsedPull(state: AssemblyState)(parsed: Parsed): Pull[IO, Nothing, AssemblyState] =

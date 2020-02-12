@@ -8,14 +8,18 @@ import scodec.Attempt
 object Analyze
 {
   def analyze: Parsed => Attempt[List[Analyzed]] = {
-    case Parsed.Raw(data) =>
-      AnalyzeNonObject(data)
     case Parsed.IndirectObj(obj, stream, _) =>
       AnalyzeObject(obj, stream)
     case Parsed.StreamObject(obj) =>
       AnalyzeObject(obj, None)
     case Parsed.Unparsable(index, data) =>
       Attempt.successful(List(Analyzed.KeepUnparsable(index, data)))
+    case Parsed.Xref(xref) =>
+      Attempt.successful(List(Analyzed.Xref(xref)))
+    case Parsed.StartXref(startxref) =>
+      Attempt.successful(List(Analyzed.StartXref(startxref)))
+    case Parsed.Version(version) =>
+      Attempt.successful(List(Analyzed.Version(version)))
   }
 
   def analyzeOrFail(parsed: Parsed): Stream[IO, List[Analyzed]] =

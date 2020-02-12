@@ -4,7 +4,6 @@ package pdf
 import cats.effect.IO
 import cats.implicits._
 import fs2.{Pipe, Stream}
-import scodec.Attempt
 
 object FilterDuplicates
 {
@@ -24,14 +23,14 @@ object FilterDuplicates
   }
 
   def filter(state: State): Parsed => Pull[IO, Parsed, State] = {
-    case Parsed.Raw(data) =>
-      Pull.output1(Parsed.Raw(data)).as(state)
     case parsed @ Parsed.IndirectObj(Obj(Obj.Index(num, _), _), _, _) =>
       check(state)(num, parsed)
     case parsed @ Parsed.StreamObject(Obj(Obj.Index(num, _), _)) =>
       check(state)(num, parsed)
     case parsed @ Parsed.Unparsable(Obj.Index(num, _), _) =>
       check(state)(num, parsed)
+    case parsed =>
+      Pull.output1(parsed).as(state)
   }
 
   // TODO metric when duplicates are found

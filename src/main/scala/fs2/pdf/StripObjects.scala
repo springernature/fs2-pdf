@@ -15,7 +15,10 @@ object ObjectChunk
   case class Text(bytes: ByteVector)
   extends ObjectChunk
 
-  case class Object(size: Long, text: ByteVector, stream: Option[BitVector])
+  case class DataObject(text: ByteVector)
+  extends ObjectChunk
+
+  case class ContentObject(text: ByteVector, stream: BitVector)
   extends ObjectChunk
 
   def text(bytes: ByteVector): ObjectChunk =
@@ -69,11 +72,11 @@ object StripObjects
       case i if i >= 0 =>
         val indexAfter = i + streamStartMarker.size
         if (bytes.lift(indexAfter).exists(newlineMarkers.contains))
-          ObjectChunk.Object(bytes.size, bytes.take(i), Some(bytes.drop(i).bits))
+          ObjectChunk.ContentObject(bytes.take(i), bytes.drop(i).bits)
         else
           splitObjectStream(bytes, indexAfter)
       case _ =>
-        ObjectChunk.Object(bytes.size, bytes, None)
+        ObjectChunk.DataObject(bytes)
     }
 
   def splitObjectText(index: Long, bytes: ByteVector): (List[ObjectChunk], ByteVector) =
