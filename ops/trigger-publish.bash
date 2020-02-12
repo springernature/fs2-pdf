@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-ref=${1:-master} pipeline=$(2:-fs2-pdf)
+ref=${1:-master} pipeline=${2:-fs2-pdf}
 
 f()
 {
@@ -16,13 +16,19 @@ js()
 
 ask()
 {
-  local problem=$1
-  read -n 1 -p "$problem. Publish anyway? [y/n] " answer
+  local question=$1
+  read -n 1 -p "$question [y/n] " answer
   echo
   if [[ $answer != 'y' ]]
   then
     exit 1
   fi
+}
+
+ask_problem()
+{
+  local problem=$1
+  ask "$problem. Publish anyway?"
 }
 
 job_attr()
@@ -37,32 +43,32 @@ echo "Publishing from ref '$ref' at $head"
 latest_in_pipeline=$(f rvs -r $pipeline/git --json | js '.[0].version.ref')
 if [[ $head != $latest_in_pipeline ]]
 then
-  ask "HEAD is not the latest commit in concourse ($latest_in_pipeline)"
+  ask_problem "HEAD is not the latest commit in concourse ($latest_in_pipeline)"
 fi
 
 publish_has_inputs=$(job_attr 'publish' '.has_new_inputs')
 if [[ $publish_has_inputs != 'true' ]]
 then
-  ask 'Publish job does not have new inputs'
+  ask_problem 'Publish job does not have new inputs'
 fi
 
 next_test_build=$(job_attr 'test' '.next_build')
 if [[ $next_test_build != 'null' ]]
 then
-  ask 'Test job is still running'
+  ask_problem 'Test job is still running'
 fi
 
 test_build_status=$(job_attr 'test' '.finished_build.status' 'js')
 if [[ $test_build_status != 'succeeded' ]]
 then
-  ask 'Test job failed'
+  ask_problem 'Test job failed'
 fi
 
 test_has_inputs=$(job_attr 'test' '.has_new_inputs')
 if [[ $test_has_inputs == 'true' ]]
 then
-  ask 'Test job has new inputs'
+  ask_problem 'Test job has new inputs'
 fi
 
-echo 'Triggering publish job'
+ask 'All conditions validated. Trigger publish job?'
 f tj -j $pipeline/publish -w
