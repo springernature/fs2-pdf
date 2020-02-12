@@ -12,10 +12,8 @@ object AnalyzeObject
       Analyzed.Keep(obj, None)
     case Obj(index, Prim.tpe("Pages", data)) =>
       Analyzed.PageDir(PageDir(index, data))
-    case Obj(index, Prim.fontResources(data, nums)) =>
-      Analyzed.FontResources(FontResource(index, data), nums)
-    case Obj(_, Prim.linearization()) =>
-      Analyzed.Linearized
+    case Obj(index, Prim.fontResources(data)) =>
+      Analyzed.FontResources(FontResource(index, data))
     case Obj(index, data @ Prim.Array(_)) =>
       Analyzed.IndirectArray(IndirectArray(index, data))
     case obj =>
@@ -32,8 +30,6 @@ object AnalyzeObject
           .toOption
           .map(Analyzed.PageNumbers(_))
         )
-    case Obj(_, Prim.fonts(nums)) =>
-      Attempt.successful(Some(Analyzed.Fonts(nums)))
     case _ =>
       Attempt.successful(None)
   }

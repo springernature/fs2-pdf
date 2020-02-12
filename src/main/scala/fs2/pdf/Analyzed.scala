@@ -19,10 +19,7 @@ object Analyzed
   case class PageNumbers(numbers: List[Long])
   extends Analyzed
 
-  case class FontResources(res: FontResource, nums: List[Long])
-  extends Analyzed
-
-  case class Fonts(nums: List[Long])
+  case class FontResources(res: FontResource)
   extends Analyzed
 
   case class IndirectArray(array: pdf.IndirectArray)
@@ -44,8 +41,5 @@ object Analyzed
   extends Analyzed
 
   case class KeepUnparsable(index: Obj.Index, data: ByteVector)
-  extends Analyzed
-
-  case object Linearized
   extends Analyzed
 }
