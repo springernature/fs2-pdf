@@ -62,7 +62,7 @@ object AnalyzeData
       Attempt.successful(Element.DataKind.Page(data))
     case Prim.tpe("Pages", data) =>
       Prim.Dict.path("Kids")(data) {
-        case Prim.refs(kids) => Element.DataKind.Pages(kids, data.data.contains("Parent"))
+        case Prim.refs(kids) => Element.DataKind.Pages(kids, !data.data.contains("Parent"))
       }
     case Prim.fontResources(_) =>
       Attempt.successful(Element.DataKind.FontResources)
