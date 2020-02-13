@@ -7,14 +7,12 @@ import scodec.bits.ByteVector
 
 object ParseTest
 {
-  def collect: RewriteState[Unit] => Analyzed => (List[Part[Trailer]], RewriteState[Unit]) =
+  def collect: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
-      case Analyzed.Xref(Xref(_, trailer, _)) =>
+      case Element.Data(obj, Element.DataKind.Pages(_, _)) =>
+        (List(Part.Obj(IndirectObj(obj.index, obj.data, None))), state)
+    case Element.Meta(trailer, _) =>
         (Nil, state.copy(trailer = Some(trailer)))
-      case Analyzed.XrefStream(XrefStream(_, trailer)) =>
-        (Nil, state.copy(trailer = Some(trailer)))
-      case Analyzed.PageDir(dir) =>
-        (List(Part.Obj(IndirectObj(dir.index, dir.data, None))), state)
       case _ =>
         (Nil, state)
     }
@@ -28,8 +26,7 @@ class ParsePdfTest
 extends Specification
 {
   def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
-    StreamParser.objects(log)
-      .andThen(Analyze.analyzed(log))
+    StreamParser.elements(log)
       .andThen(Rewrite.simple(())(ParseTest.collect)(ParseTest.update))
 
   "parse pdf" >>

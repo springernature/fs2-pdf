@@ -27,12 +27,13 @@ object ElementsTest
 class ElementsTest
 extends Specification
 {
-  def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
+  def pipe(log: Log): Pipe[IO, Byte, Unit] =
     StreamParser.elements(log)
       .andThen(Rewrite.simple(())(ElementsTest.collect)(ElementsTest.update))
+      .andThen(Write.bytes("test-out.pdf"))
 
   "parse pdf" >>
-  ProcessJarPdf.processWith("test-image")(pipe)
+  ProcessJarPdf.processWith("books/praxis")(pipe)
     .semiflatMap(_.compile.toList)
     .value
     .unsafeRunSync

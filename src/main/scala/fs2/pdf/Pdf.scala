@@ -92,12 +92,12 @@ object Pdf
 
   def pageNumber(page: Int): Pipe[IO, Byte, Long] =
     _
-      .through(StreamParser.analyzed(Log.noop))
+      .through(StreamParser.elements(Log.noop))
       .collect {
-        case Analyzed.PageDir(PageDir(_, pages)) =>
-          Prim.Dict.array("Kids")(pages).map(_.lift(page))
+        case Element.Data(_, Element.DataKind.Pages(kids, _)) =>
+          kids.toList.lift(page).map(_.number)
       }
-      .collect { case Attempt.Successful(Some(Prim.Ref(a, _))) => a }
+      .collect { case Some(a) => a }
       .head
 
   def pageObject(page: Int): Pipe[IO, Byte, (Obj, Option[BitVector])] =
