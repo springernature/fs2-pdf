@@ -9,7 +9,7 @@ object ParseTest
 {
   def collect: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
-      case Element.Data(obj, Element.DataKind.Pages(_, _)) =>
+      case Element.Data(obj, Element.DataKind.Pages(_)) =>
         (List(Part.Obj(IndirectObj(obj.index, obj.data, None))), state)
     case Element.Meta(trailer, _) =>
         (Nil, state.copy(trailer = Some(trailer)))

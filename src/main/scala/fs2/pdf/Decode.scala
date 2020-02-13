@@ -1,13 +1,12 @@
 package fs2
 package pdf
 
-import cats.Eval
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import fs2.{Pipe, Stream}
 import scodec.{Attempt, Codec, Decoder, Err}
-import scodec.bits.{BitVector, ByteVector}
+import scodec.bits.BitVector
 import scodec.stream.StreamDecoder
 import shapeless.{:+:, CNil}
 
@@ -62,53 +61,18 @@ object Decoded
   case class DataObj(obj: Obj)
   extends Decoded
 
-  case class ContentObj(obj: Obj, rawStream: BitVector, stream: Eval[Attempt[BitVector]])
+  case class ContentObj(obj: Obj, rawStream: BitVector, stream: Uncompressed)
   extends Decoded
 
   case class Meta(xrefs: NonEmptyList[Xref], trailer: Trailer, version: Version)
   extends Decoded
 }
 
-object Content
-{
-  def extractObjectStream(stream: Eval[Attempt[BitVector]]): Prim => Option[Attempt[ObjectStream]] = {
-    case Prim.tpe("ObjStm", _) =>
-      Some(
-        stream
-          .value
-          .flatMap(ObjectStream.Codec_ObjectStream.complete.decode)
-          .map(_.value)
-      )
-    case _ =>
-      None
-  }
-
-  def uncompress(stream: BitVector)
-  : Prim => Eval[Attempt[BitVector]] = {
-    case Prim.filter("FlateDecode", data) =>
-      Eval.later(FlateDecode(stream, data))
-    case _ =>
-      Eval.now(Attempt.successful(stream))
-  }
-
-  def streamLength(dict: Prim): Attempt[Long] =
-    Prim.Dict.number("Length")(dict).map(_.toLong)
-
-  val streamEndMarker: ByteVector =
-    ByteVector("endstream".getBytes)
-
-  def endstreamIndex(bytes: ByteVector): Attempt[Long] =
-    bytes.indexOfSlice(streamEndMarker) match {
-      case i if i >= 0 => Attempt.successful(i)
-      case _ => Attempt.failure(Err.InsufficientBits(0, bytes.bits.size, List("no stream end position found")))
-    }
-}
-
 object Decode
 {
   case class State(xrefs: List[Xref], version: Option[Version])
 
-  def decodeObjectStream[A](stream: Eval[Attempt[BitVector]])(data: Prim)
+  def decodeObjectStream[A](stream: Uncompressed)(data: Prim)
   : Option[Attempt[Either[A, List[Decoded]]]] =
     Content.extractObjectStream(stream)(data)
       .map(_.map(_.objs).map(a => Right(a.map(Decoded.DataObj(_)))))
@@ -119,17 +83,17 @@ object Decode
       Err("no Size in xref stream data"),
     )
 
-  def extractMetadata(stream: Eval[Attempt[BitVector]])
+  def extractMetadata(stream: Uncompressed)
   : Prim => Option[Attempt[Either[Xref, List[Decoded]]]] = {
     case Prim.tpe("XRef", data) =>
-      Some(stream.value.flatMap(XrefStream(data)).map(xs => Left(Xref(xs.tables, xs.trailer, 0))))
+      Some(stream.exec.flatMap(XrefStream(data)).map(xs => Left(Xref(xs.tables, xs.trailer, 0))))
     case _ =>
       None
   }
 
   def analyzeStream
   (index: Obj.Index, data: Prim)
-  (rawStream: BitVector, stream: Eval[Attempt[BitVector]])
+  (rawStream: BitVector, stream: Uncompressed)
   : Attempt[Either[Xref, List[Decoded]]] =
     decodeObjectStream(stream)(data)
       .orElse(extractMetadata(stream)(data))

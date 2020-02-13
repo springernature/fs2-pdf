@@ -1,36 +1,23 @@
 package fs2
 package pdf
 
-import cats.Eval
 import cats.data.NonEmptyList
 import cats.effect.IO
 import fs2.{Pipe, Stream}
 import scodec.Attempt
 import scodec.bits.BitVector
 
-case class Page(index: Obj.Index, data: Prim.Dict)
+case class MediaBox(x: BigDecimal, y: BigDecimal, w: BigDecimal, h: BigDecimal)
 
-object Page
-{
-  object fromStreamPrim
-  {
-    def unapply(streamData: (Long, Prim)): Option[Page] =
-    streamData match {
-      case (number, Prim.tpe("Page", data)) =>
-        Some(Page(Obj.Index(number, 0), data))
-      case _ =>
-        None
-    }
-  }
-}
+case class Page(index: Obj.Index, data: Prim.Dict, mediaBox: MediaBox)
 
-case class PageDir(index: Obj.Index, data: Prim.Dict)
+case class Pages(index: Obj.Index, data: Prim.Dict, kids: NonEmptyList[Prim.Ref], root: Boolean)
 
 case class FontResource(index: Obj.Index, data: Prim.Dict)
 
 case class IndirectArray(index: Obj.Index, data: Prim.Array)
 
-case class Image(codec: Image.Codec)
+case class Image(data: Prim.Dict, stream: Uncompressed, codec: Image.Codec)
 
 object Image
 {
@@ -59,19 +46,19 @@ object Element
 
   object DataKind
   {
-    case class Page(data: Prim.Dict)
-    extends DataKind
-
-    case class Pages(kids: NonEmptyList[Prim.Ref], root: Boolean)
-    extends DataKind
-
     case object General
+    extends DataKind
+
+    case class Page(page: pdf.Page)
+    extends DataKind
+
+    case class Pages(pages: pdf.Pages)
     extends DataKind
 
     case class Array(data: Prim.Array)
     extends DataKind
 
-    case object FontResources
+    case class FontResource(res: pdf.FontResource)
     extends DataKind
   }
 
@@ -82,14 +69,14 @@ object Element
 
   object ContentKind
   {
-    case class Image(image: pdf.Image)
+    case object General
     extends ContentKind
 
-    case object General
+    case class Image(image: pdf.Image)
     extends ContentKind
   }
 
-  case class Content(obj: Obj, rawStream: BitVector, stream: Eval[Attempt[BitVector]], kind: ContentKind)
+  case class Content(obj: Obj, rawStream: BitVector, stream: Uncompressed, kind: ContentKind)
   extends Element
 
   case class Meta(trailer: Trailer, version: Version)
@@ -98,15 +85,18 @@ object Element
 
 object AnalyzeData
 {
-  def kind: Prim => Attempt[Element.DataKind] = {
+  def kind(index: Obj.Index): Prim => Attempt[Element.DataKind] = {
     case Prim.tpe("Page", data) =>
-      Attempt.successful(Element.DataKind.Page(data))
+      Prim.Dict.path("MediaBox")(data) {
+        case Prim.Array(List(Prim.Number(x), Prim.Number(y), Prim.Number(w), Prim.Number(h))) =>
+          Element.DataKind.Page(Page(index, data, MediaBox(x, y, w, h)))
+      }
     case Prim.tpe("Pages", data) =>
       Prim.Dict.path("Kids")(data) {
-        case Prim.refs(kids) => Element.DataKind.Pages(kids, !data.data.contains("Parent"))
+        case Prim.refs(kids) => Element.DataKind.Pages(Pages(index, data, kids, !data.data.contains("Parent")))
       }
-    case Prim.fontResources(_) =>
-      Attempt.successful(Element.DataKind.FontResources)
+    case Prim.fontResources(data) =>
+      Attempt.successful(Element.DataKind.FontResource(FontResource(index, data)))
     case data @ Prim.Array(_) =>
       Attempt.successful(Element.DataKind.Array(data))
     case _ =>
@@ -126,9 +116,9 @@ object AnalyzeContent
       }
   }
 
-  def kind: Prim => Attempt[Element.ContentKind] = {
-    case Prim.subtype("Image", SupportedCodec(codec)) =>
-      Attempt.successful(Element.ContentKind.Image(Image(codec)))
+  def kind(stream: Uncompressed): Prim => Attempt[Element.ContentKind] = {
+    case Prim.subtype("Image", data @ SupportedCodec(codec)) =>
+      Attempt.successful(Element.ContentKind.Image(Image(data, stream, codec)))
     case _ =>
       Attempt.successful(Element.ContentKind.General)
   }
@@ -138,10 +128,10 @@ object Elements
 {
   def element: Decoded => Attempt[Element] = {
     case Decoded.DataObj(obj) =>
-      AnalyzeData.kind(obj.data)
+      AnalyzeData.kind(obj.index)(obj.data)
         .map(Element.Data(obj, _))
     case Decoded.ContentObj(obj, rawStream, stream) =>
-      AnalyzeContent.kind(obj.data)
+      AnalyzeContent.kind(stream)(obj.data)
         .map(Element.Content(obj, rawStream, stream, _))
     case Decoded.Meta(_, trailer, version) =>
       Attempt.successful(Element.Meta(trailer, version))

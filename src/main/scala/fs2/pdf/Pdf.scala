@@ -40,7 +40,7 @@ object Pdf
       .through(StreamParser.decode(Log.noop))
       .collect {
         case Decoded.ContentObj(obj @ Obj(Obj.Index(n, _), _), _, stream) if numbers.contains(n) =>
-          StreamUtil.attemptStream(s"stream of object $n")(stream.value)
+          StreamUtil.attemptStream(s"stream of object $n")(stream.exec)
             .map(a => (obj, Some(a)))
         case Decoded.DataObj(obj @ Obj(Obj.Index(n, _), _)) if numbers.contains(n) =>
           Stream((obj, None))
@@ -51,7 +51,7 @@ object Pdf
     _
       .through(StreamParser.elements(Log.noop))
       .collect {
-        case Element.Data(_, Element.DataKind.Pages(kids, _)) =>
+        case Element.Data(_, Element.DataKind.Pages(Pages(_, _, kids, _))) =>
           kids.toList.lift(page).map(_.number)
       }
       .collect { case Some(a) => a }
@@ -111,7 +111,7 @@ object Pdf
 
     def processParsed(state: AssemblyState): Decoded => AssemblyState = {
       case Decoded.ContentObj(obj, _, stream) =>
-        stream.value match {
+        stream.exec match {
           case Attempt.Successful(s) =>
             state.obj(PdfObj.Content(IndirectObj(obj.index, obj.data, Some(s))))
           case Attempt.Failure(cause) =>

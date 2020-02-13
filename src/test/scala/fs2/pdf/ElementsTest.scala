@@ -3,7 +3,6 @@ package pdf
 
 import cats.effect.IO
 import org.specs2.mutable.Specification
-import scodec.bits.ByteVector
 
 object ElementsTest
 {
