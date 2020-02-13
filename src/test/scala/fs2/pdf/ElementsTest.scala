@@ -11,8 +11,10 @@ object ElementsTest
     state => {
       case Element.Meta(trailer, _) =>
         (Nil, state.copy(trailer = Some(trailer)))
-      case Element.Data(Obj(index, data), Element.DataKind.Pages(_, _)) =>
+      case Element.Data(Obj(index, data), _) =>
         (List(Part.Obj(IndirectObj(index, data, None))), state)
+      case Element.Content(Obj(index, data), rawStream, _, _) =>
+        (List(Part.Obj(IndirectObj(index, data, Some(rawStream)))), state)
       case _ =>
         (Nil, state)
     }
