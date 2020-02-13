@@ -1,9 +1,7 @@
 package fs2
 package pdf
 
-import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.ByteVector
 

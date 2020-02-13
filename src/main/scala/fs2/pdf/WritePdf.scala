@@ -13,18 +13,21 @@ object GenerateXref
   def xrefEntries(indexes: NonEmptyList[Obj.Index], sizes: NonEmptyList[Long], initialOffset: Long)
   : NonEmptyList[(Long, Xref.Entry)] =
     indexes
-      .zipWith(EncodeMeta.offsets(initialOffset)(sizes))((_, _))
-      .map { case (index, offset) => (index.number, EncodeMeta.objectXrefEntry(index, offset)) }
+      .zipWith(EncodeMeta.offsets(initialOffset)(sizes)) {
+        case (index, offset) =>
+          (index.number, EncodeMeta.objectXrefEntry(index, offset))
+      }
       .sortBy(_._1)
 
   def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] = {
-    val base = entries.head._1.toInt + 1
     entries
-      .reduceLeftTo(a => NonEmptyList.one(a._2)) {
-        case (z, (number, entry)) =>
-          NonEmptyList(entry, List.fill(number.toInt - z.size - base)(Xref.Entry.dummy)) ::: z
+      .reduceLeftTo(a => NonEmptyList.one(a)) {
+        case (z @ NonEmptyList((prevNumber, _), _), (number, entry)) =>
+          val padding = List.fill((number - prevNumber - 1).toInt)((0L, Xref.Entry.dummy))
+          NonEmptyList((number, entry), padding) ::: z
       }
-        .reverse
+      .reverse
+      .map(_._2)
   }
 
   def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
@@ -46,14 +49,14 @@ object GenerateXref
     val sizes = meta.map(_.size)
     val startxref = initialOffset + sizes.toList.sum
     val entries = padEntries(deduplicateEntries(xrefEntries(indexes, sizes, initialOffset)))
-    val firstNumber = meta.head.index.number
-    val fromZero = firstNumber == 1
+    val firstNumber = meta.minimumBy(_.index.number).index.number
+    val fromZero = firstNumber == 1L
     val zeroIncrement = if (fromZero) 1 else 0
     val trailer = EncodeMeta.trailer(trailerDict, 0, None, entries.size + zeroIncrement)
     val withFree =
       if (fromZero) Xref.Entry.freeHead :: entries
       else entries
-    val tableOffset = if (fromZero) 0 else firstNumber
+    val tableOffset = if (fromZero) 0L else firstNumber
     Xref(NonEmptyList.one(Xref.Table(tableOffset, withFree)), trailer, startxref)
   }
 }
