@@ -31,7 +31,7 @@ object TopLevel
   extends TopLevel
 
   /**
-    * Decode a top level PDF object like indirect objects, version tags, comments and cross reference tables.
+    * Decode a top level PDF element like indirect objects, version tags, comments and cross reference tables.
     * The coproduct type must be specified explicitly because the macro will order the types alphabetically, making
     * Comment supersede Version.
     *
@@ -41,7 +41,7 @@ object TopLevel
     Codec.coproduct[IndirectObj :+: Version :+: Comment :+: Xref :+: StartXref :+: CNil].choice.as[TopLevel]
 
   /**
-    * Decode a top level PDF object like indirect objects, version tags, comments and cross reference tables.
+    * Decode a top level PDF element like indirect objects, version tags, comments and cross reference tables.
     * Wrapped decoder for the use in streams.
     * Since [[Decoder_TopLevel]] is a choice decoder, it will return an error that causes
     * [[StreamDecoder]] to terminate, so we force the error to be [[Err.InsufficientBits]].
@@ -51,8 +51,8 @@ object TopLevel
   def streamDecoder: Decoder[TopLevel] =
     Decoder(bits => Decoder_TopLevel.decode(bits).mapErr(e => Err.InsufficientBits(0, 0, e.context)))
 
-  def pipe: Pipe[IO, Byte, TopLevel] =
-    StreamDecoder.many(streamDecoder).toPipeByte
+  def pipe: Pipe[IO, BitVector, TopLevel] =
+    StreamDecoder.many(streamDecoder).toPipe
 }
 
 sealed trait Decoded
@@ -137,6 +137,8 @@ object Decode
   def decodeTopLevelPipe: Pipe[IO, TopLevel, Decoded] =
     decodeTopLevelPull(_).stream
 
-  def decoded(log: Log): Pipe[IO, Byte, Decoded] =
-    TopLevel.pipe.andThen(FilterDuplicatesTopLevel.pipe(log)).andThen(decodeTopLevelPipe)
+  def decoded(log: Log): Pipe[IO, BitVector, Decoded] =
+    TopLevel.pipe
+      .andThen(FilterDuplicatesTopLevel.pipe(log))
+      .andThen(decodeTopLevelPipe)
 }
