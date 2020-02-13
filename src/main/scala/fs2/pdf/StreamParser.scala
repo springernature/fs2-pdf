@@ -33,6 +33,9 @@ object StreamParser
   def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
     ValidatePdf.fromParsed(objects(log)(bytes))
 
+  def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
+    ComparePdfs.fromParsed(objects(log)(old), objects(log)(updated))
+
   def decode(log: Log): Pipe[IO, Byte, Decoded] =
     bits
       .andThen(Decode.decoded(log))

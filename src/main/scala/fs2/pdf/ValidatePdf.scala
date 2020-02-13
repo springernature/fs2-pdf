@@ -65,5 +65,32 @@ object ValidatePdf
   def fromParsed(parsed: Stream[IO, Parsed]): IO[ValidatedNel[String, Unit]] =
     Pdf.Assemble(parsed)
       .map(_.andThen { case ValidatedPdf(pdf, errors) => errors.combine(apply(pdf)) })
+}
 
+object ComparePdfs
+{
+  def compareObjs: ((Long, (Option[IndirectObj], Option[IndirectObj]))) => ValidatedNel[String, Unit] = {
+    case (num, (Some(IndirectObj(_, data, Some(_))), Some(IndirectObj(_, _, None)))) =>
+      Validated.invalidNel(s"stream deleted from object $num:\n$data")
+    case (num, (Some(a), None)) =>
+      Validated.invalidNel(s"object $num missing from updated pdf:\n$a")
+    case (num, (None, Some(a))) =>
+      Validated.invalidNel(s"object $num added to updated pdf:\n$a")
+    case (_, (Some(_), Some(_))) =>
+      Validated.Valid(())
+  }
+
+  def fromParsed(oldParsed: Stream[IO, Parsed], updatedParsed: Stream[IO, Parsed]): IO[ValidatedNel[String, Unit]] =
+    (Pdf.Assemble(oldParsed), Pdf.Assemble(updatedParsed))
+      .mapN {
+        case (Validated.Valid(old), Validated.Valid(updated)) =>
+          val oldByNumber = ValidatePdf.objsByNumber(old.pdf)
+          val updatedByNumber = ValidatePdf.objsByNumber(updated.pdf)
+          oldByNumber
+            .padZip(updatedByNumber)
+            .toList
+            .foldMap(compareObjs)
+        case (_, _) =>
+          ???
+      }
 }
