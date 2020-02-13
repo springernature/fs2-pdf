@@ -18,7 +18,7 @@ object Element
 
   object DataKind
   {
-    case object Page
+    case class Page(data: Prim.Dict)
     extends DataKind
 
     case class Pages(kids: NonEmptyList[Prim.Ref], root: Boolean)
@@ -58,8 +58,8 @@ object Element
 object AnalyzeData
 {
   def kind: Prim => Attempt[Element.DataKind] = {
-    case Prim.tpe("Page", _) =>
-      Attempt.successful(Element.DataKind.Page)
+    case Prim.tpe("Page", data) =>
+      Attempt.successful(Element.DataKind.Page(data))
     case Prim.tpe("Pages", data) =>
       Prim.Dict.path("Kids")(data) {
         case Prim.refs(kids) => Element.DataKind.Pages(kids, data.data.contains("Parent"))
