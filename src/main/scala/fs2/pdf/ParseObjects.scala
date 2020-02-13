@@ -87,20 +87,20 @@ object ParseObjects
         Attempt.successful(None)
     }
 
-  val streamEndMarker: BitVector =
-    BitVector("endstream".getBytes)
+  val streamEndMarker: ByteVector =
+    ByteVector("endstream".getBytes)
 
   def streamLength(dict: Prim): Attempt[Long] =
     Prim.Dict.number("Length")(dict).map(_.toLong)
 
-  def endstreamIndex(bits: BitVector): Attempt[Long] =
-    bits.indexOfSlice(streamEndMarker) match {
+  def endstreamIndex(bytes: ByteVector): Attempt[Long] =
+    bytes.indexOfSlice(streamEndMarker) match {
       case i if i >= 0 => Attempt.successful(i)
-      case _ => Attempt.failure(Err.InsufficientBits(0, bits.size, List("no stream end position found")))
+      case _ => Attempt.failure(Err.InsufficientBits(0, bytes.bits.size, List("no stream end position found")))
     }
 
   def stripStreamEndMarker(bits: BitVector): Attempt[BitVector] =
-    endstreamIndex(bits).map(i => Codecs.stripNewlineBits(bits.take(i)))
+    endstreamIndex(bits.bytes).map(i => Codecs.stripNewline(bits.bytes.take(i)).bits)
 
   def streamStartMarkerDecoder: Decoder[Unit] = {
     import scodec.codecs.choice

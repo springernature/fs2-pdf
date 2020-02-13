@@ -29,6 +29,7 @@ private[pdf]
 trait IndirectObjCodec
 {
   import scodec.codecs._
+  import Codecs.{stripNewline, newline, nlWs, skipWs, str, lf, crlf, productCodec}
 
   /**
     * Decodes the leading `stream` keyword for a content stream.
@@ -37,7 +38,7 @@ trait IndirectObjCodec
     * @return stream start keyword codec
     */
   def streamStartKeyword: Codec[Unit] =
-    Codecs.str("stream") <~ choice(Codecs.lf, Codecs.crlf)
+    str("stream") <~ choice(lf, crlf)
 
   def streamBitLength(data: Prim): Attempt[Long] =
     ParseObjects.streamLength(data).map(_ * 8)
@@ -54,12 +55,12 @@ trait IndirectObjCodec
     */
   def stripStream(data: Prim)(bits: BitVector): Attempt[DecodeResult[BitVector]] =
     for {
-      end <- ParseObjects.endstreamIndex(bits)
-      length <- streamBitLength(data)
+      end <- ParseObjects.endstreamIndex(bits.bytes)
+      length <- ParseObjects.streamLength(data)
       } yield {
         val payload =
-          if (length > end + 16) Codecs.stripNewline(bits.take(end).bytes).bits
-          else bits.take(length)
+          if (length > end + 2) stripNewline(bits.bytes.take(end)).bits
+          else bits.bytes.take(length).bits
         DecodeResult(payload, bits.drop(payload.size))
       }
 
@@ -68,20 +69,20 @@ trait IndirectObjCodec
 
   def streamCodec(data: Prim): Codec[Option[BitVector]] =
     optional(recover(streamStartKeyword),
-      streamPayload(data) <~ Codecs.newline <~ Codecs.str("endstream") <~ Codecs.nlWs
+      streamPayload(data) <~ newline <~ str("endstream") <~ nlWs
     )
 
   def objHeader: Codec[Obj.Index] =
-    Codecs.skipWs ~> Obj.Index.Codec_Index <~ Codecs.nlWs
+    skipWs ~> Obj.Index.Codec_Index <~ nlWs
 
   def prim: Codec[Prim] =
-    Prim.Codec_Prim <~ Codecs.nlWs
+    Prim.Codec_Prim <~ nlWs
 
   def endobj: Codec[Unit] =
-    Codecs.str("endobj") <~ Codecs.nlWs
+    str("endobj") <~ nlWs
 
   implicit def Codec_IndirectObj: Codec[IndirectObj] =
-    Codecs.productCodec(
+    productCodec(
       (objHeader ~ prim).flatZip { case (_, data) => streamCodec(data) } <~ endobj
     )
 }
