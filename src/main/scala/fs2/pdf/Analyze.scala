@@ -12,8 +12,6 @@ object Analyze
       AnalyzeObject(obj, stream)
     case Parsed.StreamObject(obj) =>
       AnalyzeObject(obj, None)
-    case Parsed.Unparsable(index, data) =>
-      Attempt.successful(List(Analyzed.KeepUnparsable(index, data)))
     case Parsed.Xref(xref) =>
       Attempt.successful(List(Analyzed.Xref(xref)))
     case Parsed.StartXref(StartXref(startxref)) =>

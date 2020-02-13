@@ -27,8 +27,6 @@ object FilterDuplicates
       check(state)(num, parsed)
     case parsed @ Parsed.StreamObject(Obj(Obj.Index(num, _), _)) =>
       check(state)(num, parsed)
-    case parsed @ Parsed.Unparsable(Obj.Index(num, _), _) =>
-      check(state)(num, parsed)
     case parsed @ Parsed.Xref(_) =>
       Pull.output1(parsed).as(state.copy(update = true))
     case parsed @ Parsed.StartXref(_) =>

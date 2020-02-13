@@ -21,9 +21,6 @@ object Parsed
   case class StreamObject(obj: Obj)
   extends Parsed
 
-  case class Unparsable(index: Obj.Index, data: ByteVector)
-  extends Parsed
-
   case class StartXref(startxref: pdf.StartXref)
   extends Parsed
 

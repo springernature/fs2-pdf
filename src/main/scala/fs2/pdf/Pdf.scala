@@ -176,8 +176,6 @@ object Pdf
         state.xref(xref)
       case Parsed.StreamObject(obj) =>
         state.obj(PdfObj.Stream(obj))
-      case Parsed.Unparsable(index, _) =>
-        state.error(s"unparsable object: $index")
       case _ =>
         state
     }
