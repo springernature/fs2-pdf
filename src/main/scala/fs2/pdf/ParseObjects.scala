@@ -24,7 +24,7 @@ object Parsed
   case class Unparsable(index: Obj.Index, data: ByteVector)
   extends Parsed
 
-  case class StartXref(startxref: Long)
+  case class StartXref(startxref: pdf.StartXref)
   extends Parsed
 
   case class Xref(xref: pdf.Xref)
@@ -53,7 +53,7 @@ object ParseNonObject
 
   def decoder: Decoder[Parsed] =
     Decoder.choiceDecoder(
-      withoutComments(Xref.startxref).map(Parsed.StartXref(_)),
+      withoutComments(StartXref.Codec_StartXref).map(Parsed.StartXref(_)),
       withoutComments(Xref.Codec_Xref).map(Parsed.Xref(_)),
       Version.Codec_Version.map(Parsed.Version(_)),
     )

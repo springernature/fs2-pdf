@@ -7,6 +7,19 @@ import scodec.{Attempt, Codec, Err}
 
 case class Trailer(size: BigDecimal, data: Prim.Dict)
 
+object Trailer
+{
+  def sanitize(trailers: NonEmptyList[Trailer]): Trailer =
+    Trailer(
+      trailers.toList.maxByOption(_.size).getOrElse(trailers.head).size,
+      Prim.Dict(
+        trailers.map(_.data.data).reduceLeft((a, b) => a ++ b)
+          .removed("Prev")
+          .removed("DecodeParms")
+      )
+    )
+}
+
 case class Xref(tables: NonEmptyList[Xref.Table], trailer: Trailer, startxref: Long)
 
 object Xref
@@ -71,7 +84,17 @@ extends XrefCodec
     Xref.Entry(Index.Compressed(obj, index), `type`)
 }
 
-case class ParsedXref(xref: Xref)
+case class StartXref(offset: Long)
+
+object StartXref
+{
+  import Codecs.{str, nlWs, ascii}
+
+  implicit def Codec_StartXref: Codec[StartXref] =
+    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
+      .withContext("startxref")
+      .as[StartXref]
+}
 
 trait XrefCodec
 {

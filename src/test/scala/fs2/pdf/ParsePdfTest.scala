@@ -10,9 +10,9 @@ object ParseTest
   def collect: RewriteState[Unit] => Analyzed => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
       case Analyzed.Xref(Xref(_, trailer, _)) =>
-        (Nil, state.copy(trailers = trailer :: state.trailers))
+        (Nil, state.copy(trailer = Some(trailer)))
       case Analyzed.XrefStream(XrefStream(_, trailer)) =>
-        (Nil, state.copy(trailers = trailer :: state.trailers))
+        (Nil, state.copy(trailer = Some(trailer)))
       case Analyzed.PageDir(dir) =>
         (List(Part.Obj(IndirectObj(dir.index, dir.data, None))), state)
       case _ =>

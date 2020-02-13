@@ -7,37 +7,28 @@ import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.ByteVector
 
-case class RewriteState[S](state: S, trailers: List[Trailer])
+case class RewriteState[S](state: S, trailer: Option[Trailer])
 
 object RewriteState
 {
   def cons[S](state: S): RewriteState[S] =
-    RewriteState(state, Nil)
+    RewriteState(state, None)
 }
 
 case class RewriteUpdate[S](state: S, trailer: Trailer)
 
 object Rewrite
 {
-  def sanitizeTrailer(trailers: NonEmptyList[Trailer]): Trailer =
-    Trailer(
-      trailers.toList.maxByOption(_.size).getOrElse(trailers.head).size,
-      Prim.Dict(
-        trailers.map(_.data.data).reduceLeft((a, b) => a ++ b)
-          .removed("Prev")
-          .removed("DecodeParms")
-      )
-    )
-
+  private[this]
   def emitUpdate[S]: RewriteState[S] => Pull[IO, Part[Trailer], RewriteUpdate[S]] = {
-    case RewriteState(state, h :: t) =>
-      val trailer = sanitizeTrailer(NonEmptyList(h, t))
+    case RewriteState(state, Some(trailer)) =>
       Pull.output1(Part.Meta(trailer))
         .as(RewriteUpdate(state, trailer))
-    case RewriteState(_, Nil) =>
-      StreamUtil.failPull("no trailers could be parsed")
+    case RewriteState(_, None) =>
+      StreamUtil.failPull("no trailer in rewrite stream")
   }
 
+  private[this]
   def rewrite[S, A]
   (initial: S)
   (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
@@ -46,6 +37,7 @@ object Rewrite
     StreamUtil.pullState(collect)(in)(RewriteState.cons(initial))
       .flatMap(emitUpdate)
 
+  private[this]
   def rewriteAndUpdate[S, A]
   (initial: S)
   (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])

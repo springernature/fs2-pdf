@@ -26,6 +26,9 @@ object StreamParser
   def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
     ValidatePdf.fromParsed(objects(log)(bytes))
 
-  def decode: Pipe[IO, Byte, Decoded] =
-    Decode.decoded
+  def decode(log: Log): Pipe[IO, Byte, Decoded] =
+    Decode.decoded(log)
+
+  def elements(log: Log): Pipe[IO, Byte, Element] =
+    decode(log).andThen(Elements.pipe)
 }

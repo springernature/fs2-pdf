@@ -229,7 +229,7 @@ object Codecs
     Codec(utf8, Decoder(takeCharsUntilAny(chars) _))
 
   def constantLine(content: String): Codec[Unit] =
-    constantString(content) <~ newline
+    str(content) <~ newline
 
   def space: Codec[Unit] =
     byte(' ')

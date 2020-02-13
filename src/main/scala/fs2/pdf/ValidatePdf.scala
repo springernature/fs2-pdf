@@ -54,16 +54,16 @@ object ValidatePdf
   def validateContentStreams(byNumber: Map[Long, IndirectObj], refs: Refs): ValidatedNel[String, Unit] =
     refs.contents.foldMap(validateContentStream(byNumber))
 
+  def objsByNumber(pdf: Pdf): Map[Long, IndirectObj] =
+    indirect(pdf).map(a => (a.index.number, a)).toMap
+
   def apply(pdf: Pdf): ValidatedNel[String, Unit] = {
-    val byNumber = indirect(pdf).map(a => (a.index.number, a)).toMap
     val refs = pdf.objs.foldLeft(Refs(Nil))(collectRefs)
-    validateContentStreams(byNumber, refs)
+    validateContentStreams(objsByNumber(pdf), refs)
   }
 
   def fromParsed(parsed: Stream[IO, Parsed]): IO[ValidatedNel[String, Unit]] =
     Pdf.Assemble(parsed)
       .map(_.andThen { case ValidatedPdf(pdf, errors) => errors.combine(apply(pdf)) })
 
-  def diff(left: Pdf, right: Pdf): ValidatedNel[String, Unit] =
-    ???
 }

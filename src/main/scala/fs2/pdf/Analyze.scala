@@ -16,7 +16,7 @@ object Analyze
       Attempt.successful(List(Analyzed.KeepUnparsable(index, data)))
     case Parsed.Xref(xref) =>
       Attempt.successful(List(Analyzed.Xref(xref)))
-    case Parsed.StartXref(startxref) =>
+    case Parsed.StartXref(StartXref(startxref)) =>
       Attempt.successful(List(Analyzed.StartXref(startxref)))
     case Parsed.Version(version) =>
       Attempt.successful(List(Analyzed.Version(version)))

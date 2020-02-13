@@ -20,7 +20,7 @@ object AnalyzeObject
       Analyzed.Keep(obj, None)
   }
 
-  def parseRewritableObj(obj: Obj, stream: Option[Parsed.Stream]): Attempt[Analyzed] =
+  def analyzeRewritableObj(obj: Obj, stream: Option[Parsed.Stream]): Attempt[Analyzed] =
     stream.fold(Attempt.successful(metadataObj(obj)))(AnalyzeStream(_)(obj))
 
   def collectObjStats: Obj => Attempt[Option[Analyzed]] = {
@@ -36,7 +36,7 @@ object AnalyzeObject
 
   def apply(obj: Obj, stream: Option[Parsed.Stream]): Attempt[List[Analyzed]] =
     for {
-      rw <- parseRewritableObj(obj, stream)
+      rw <- analyzeRewritableObj(obj, stream)
       stats <- stream.fold(collectObjStats(obj))(_ => Attempt.successful(None))
     } yield rw :: stats.toList
 }
