@@ -20,17 +20,9 @@ object StreamParser
       .chunkN(10000000)
       .map(_.toBitVector)
 
-  def objects(log: Log): Pipe[IO, Byte, Parsed] =
+  def topLevel: Pipe[IO, Byte, TopLevel] =
     bits
-      .andThen(ChunkObjects.pipe)
-      .andThen(StripObjects.pipe(log))
-      .andThen(ParseObjects.pipe)
-
-  def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
-    ValidatePdf.fromParsed(objects(log)(bytes))
-
-  def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
-    ComparePdfs.fromParsed(objects(log)(old), objects(log)(updated))
+      .andThen(TopLevel.pipe)
 
   def decode(log: Log): Pipe[IO, Byte, Decoded] =
     bits
@@ -39,4 +31,10 @@ object StreamParser
   def elements(log: Log): Pipe[IO, Byte, Element] =
     decode(log)
       .andThen(Elements.pipe)
+
+  def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
+    ValidatePdf.fromDecoded(decode(log)(bytes))
+
+  def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
+    ComparePdfs.fromDecoded(decode(log)(old), decode(log)(updated))
 }

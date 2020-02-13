@@ -8,7 +8,48 @@ import fs2.{Pipe, Stream}
 import scodec.Attempt
 import scodec.bits.BitVector
 
-case class Image1(codec: Image.Codec)
+case class Page(index: Obj.Index, data: Prim.Dict)
+
+object Page
+{
+  object fromStreamPrim
+  {
+    def unapply(streamData: (Long, Prim)): Option[Page] =
+    streamData match {
+      case (number, Prim.tpe("Page", data)) =>
+        Some(Page(Obj.Index(number, 0), data))
+      case _ =>
+        None
+    }
+  }
+}
+
+case class PageDir(index: Obj.Index, data: Prim.Dict)
+
+case class FontResource(index: Obj.Index, data: Prim.Dict)
+
+case class IndirectArray(index: Obj.Index, data: Prim.Array)
+
+case class Image(codec: Image.Codec)
+
+object Image
+{
+  sealed trait Codec
+
+  object Codec
+  {
+    case object Jpg
+    extends Codec
+
+    case object Ccitt
+    extends Codec
+
+    def extension: Codec => String = {
+      case Jpg => "jpg"
+      case Ccitt => "tiff"
+    }
+  }
+}
 
 sealed trait Element
 
@@ -41,7 +82,7 @@ object Element
 
   object ContentKind
   {
-    case class Image(image: Image1)
+    case class Image(image: pdf.Image)
     extends ContentKind
 
     case object General
@@ -87,7 +128,7 @@ object AnalyzeContent
 
   def kind: Prim => Attempt[Element.ContentKind] = {
     case Prim.subtype("Image", SupportedCodec(codec)) =>
-      Attempt.successful(Element.ContentKind.Image(Image1(codec)))
+      Attempt.successful(Element.ContentKind.Image(Image(codec)))
     case _ =>
       Attempt.successful(Element.ContentKind.General)
   }
@@ -102,7 +143,7 @@ object Elements
     case Decoded.ContentObj(obj, rawStream, stream) =>
       AnalyzeContent.kind(obj.data)
         .map(Element.Content(obj, rawStream, stream, _))
-    case Decoded.Meta(trailer, version) =>
+    case Decoded.Meta(_, trailer, version) =>
       Attempt.successful(Element.Meta(trailer, version))
   }
 

@@ -7,7 +7,7 @@ import cats.effect.IO
 import cats.implicits._
 import fs2.{Pipe, Stream}
 import scodec.{Attempt, Codec, Decoder, Err}
-import scodec.bits.BitVector
+import scodec.bits.{BitVector, ByteVector}
 import scodec.stream.StreamDecoder
 import shapeless.{:+:, CNil}
 
@@ -65,17 +65,52 @@ object Decoded
   case class ContentObj(obj: Obj, rawStream: BitVector, stream: Eval[Attempt[BitVector]])
   extends Decoded
 
-  case class Meta(trailer: Trailer, version: Version)
+  case class Meta(xrefs: NonEmptyList[Xref], trailer: Trailer, version: Version)
   extends Decoded
+}
+
+object Content
+{
+  def extractObjectStream(stream: Eval[Attempt[BitVector]]): Prim => Option[Attempt[ObjectStream]] = {
+    case Prim.tpe("ObjStm", _) =>
+      Some(
+        stream
+          .value
+          .flatMap(ObjectStream.Codec_ObjectStream.complete.decode)
+          .map(_.value)
+      )
+    case _ =>
+      None
+  }
+
+  def uncompress(stream: BitVector)
+  : Prim => Eval[Attempt[BitVector]] = {
+    case Prim.filter("FlateDecode", data) =>
+      Eval.later(FlateDecode(stream, data))
+    case _ =>
+      Eval.now(Attempt.successful(stream))
+  }
+
+  def streamLength(dict: Prim): Attempt[Long] =
+    Prim.Dict.number("Length")(dict).map(_.toLong)
+
+  val streamEndMarker: ByteVector =
+    ByteVector("endstream".getBytes)
+
+  def endstreamIndex(bytes: ByteVector): Attempt[Long] =
+    bytes.indexOfSlice(streamEndMarker) match {
+      case i if i >= 0 => Attempt.successful(i)
+      case _ => Attempt.failure(Err.InsufficientBits(0, bytes.bits.size, List("no stream end position found")))
+    }
 }
 
 object Decode
 {
-  case class State(trailers: List[Trailer], version: Option[Version])
+  case class State(xrefs: List[Xref], version: Option[Version])
 
-  def decodeObjectStream(stream: Eval[Attempt[BitVector]])(data: Prim)
-  : Option[Attempt[Either[Trailer, List[Decoded]]]] =
-    ParseObjects.extractObjectStream(stream)(data)
+  def decodeObjectStream[A](stream: Eval[Attempt[BitVector]])(data: Prim)
+  : Option[Attempt[Either[A, List[Decoded]]]] =
+    Content.extractObjectStream(stream)(data)
       .map(_.map(_.objs).map(a => Right(a.map(Decoded.DataObj(_)))))
 
   def trailer(data: Prim.Dict): Attempt[Trailer] =
@@ -84,9 +119,10 @@ object Decode
       Err("no Size in xref stream data"),
     )
 
-  def extractMetadata: Prim => Option[Attempt[Either[Trailer, List[Decoded]]]] = {
+  def extractMetadata(stream: Eval[Attempt[BitVector]])
+  : Prim => Option[Attempt[Either[Xref, List[Decoded]]]] = {
     case Prim.tpe("XRef", data) =>
-      Some(trailer(data).map(Left(_)))
+      Some(stream.value.flatMap(XrefStream(data)).map(xs => Left(Xref(xs.tables, xs.trailer, 0))))
     case _ =>
       None
   }
@@ -94,9 +130,9 @@ object Decode
   def analyzeStream
   (index: Obj.Index, data: Prim)
   (rawStream: BitVector, stream: Eval[Attempt[BitVector]])
-  : Attempt[Either[Trailer, List[Decoded]]] =
+  : Attempt[Either[Xref, List[Decoded]]] =
     decodeObjectStream(stream)(data)
-      .orElse(extractMetadata(data))
+      .orElse(extractMetadata(stream)(data))
       .getOrElse(Attempt.successful(Right(List(Decoded.ContentObj(Obj(index, data), rawStream, stream)))))
 
   def contentObj
@@ -104,10 +140,10 @@ object Decode
   (index: Obj.Index, data: Prim, stream: BitVector)
   : Pull[IO, Decoded, State] =
     StreamUtil.attemptPullWith("extract stream objects")(
-      analyzeStream(index, data)(stream, ParseObjects.uncompressStrippedStream(stream)(data))
+      analyzeStream(index, data)(stream, Content.uncompress(stream)(data))
     ) {
       case Right(decoded) => Pull.output(Chunk.seq(decoded)).as(state)
-      case Left(trailer) => Pull.pure(state.copy(trailers = trailer :: state.trailers))
+      case Left(xref) => Pull.pure(state.copy(xrefs = xref :: state.xrefs))
     }
 
   def pullTopLevel(state: State): TopLevel => Pull[IO, Decoded, State] = {
@@ -120,7 +156,7 @@ object Decode
     case TopLevel.Version(version) =>
       Pull.pure(state.copy(version = Some(version)))
     case TopLevel.Xref(xref) =>
-      Pull.pure(state.copy(trailers = xref.trailer :: state.trailers))
+      Pull.pure(state.copy(xrefs = xref :: state.xrefs))
     case TopLevel.StartXref(_) =>
       Pull.pure(state)
     case TopLevel.Comment(_) =>
@@ -131,7 +167,9 @@ object Decode
     StreamUtil.pullState(pullTopLevel)(in)(State(Nil, None))
       .flatMap {
         case State(h :: t, Some(version)) =>
-          Pull.output1(Decoded.Meta(Trailer.sanitize(NonEmptyList(h, t)), version))
+          val xrefs = NonEmptyList(h, t)
+          val trailers = xrefs.map(_.trailer)
+          Pull.output1(Decoded.Meta(xrefs, Trailer.sanitize(trailers), version))
         case _ =>
           StreamUtil.failPull("no xref or version")
       }
@@ -141,6 +179,6 @@ object Decode
 
   def decoded(log: Log): Pipe[IO, BitVector, Decoded] =
     TopLevel.pipe
-      .andThen(FilterDuplicatesTopLevel.pipe(log))
+      .andThen(FilterDuplicates.pipe(log))
       .andThen(decodeTopLevelPipe)
 }

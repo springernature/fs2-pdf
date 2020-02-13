@@ -24,9 +24,9 @@ object ValidatePdf
 
   def collectRefs(z: Refs, obj: PdfObj): Refs =
     obj match {
-      case PdfObj.Indirect(IndirectObj(Obj.Index(number, _), dict @ Prim.Dict(_), _)) =>
+      case PdfObj.Content(IndirectObj(Obj.Index(number, _), dict @ Prim.Dict(_), _)) =>
         z.content(collectRefFromDict(number, dict))
-      case PdfObj.Stream(Obj(Obj.Index(number, _), dict @ Prim.Dict(_))) =>
+      case PdfObj.Data(Obj(Obj.Index(number, _), dict @ Prim.Dict(_))) =>
         z.content(collectRefFromDict(number, dict))
       case PdfObj.Unparsable(_, _) =>
         ???
@@ -35,7 +35,7 @@ object ValidatePdf
     }
 
   def indirect(pdf: Pdf): List[IndirectObj] =
-    pdf.objs.collect { case PdfObj.Indirect(obj) => obj }
+    pdf.objs.collect { case PdfObj.Content(obj) => obj }
 
   def validateContentStream(byNumber: Map[Long, IndirectObj]): ContentRef => ValidatedNel[String, Unit] = {
     case ContentRef(owner, target) =>
@@ -62,8 +62,8 @@ object ValidatePdf
     validateContentStreams(objsByNumber(pdf), refs)
   }
 
-  def fromParsed(parsed: Stream[IO, Parsed]): IO[ValidatedNel[String, Unit]] =
-    Pdf.Assemble(parsed)
+  def fromDecoded(decoded: Stream[IO, Decoded]): IO[ValidatedNel[String, Unit]] =
+    Pdf.Assemble(decoded)
       .map(_.andThen { case ValidatedPdf(pdf, errors) => errors.combine(apply(pdf)) })
 }
 
@@ -80,8 +80,8 @@ object ComparePdfs
       Validated.Valid(())
   }
 
-  def fromParsed(oldParsed: Stream[IO, Parsed], updatedParsed: Stream[IO, Parsed]): IO[ValidatedNel[String, Unit]] =
-    (Pdf.Assemble(oldParsed), Pdf.Assemble(updatedParsed))
+  def fromDecoded(oldDecoded: Stream[IO, Decoded], updatedDecoded: Stream[IO, Decoded]): IO[ValidatedNel[String, Unit]] =
+    (Pdf.Assemble(oldDecoded), Pdf.Assemble(updatedDecoded))
       .mapN {
         case (Validated.Valid(old), Validated.Valid(updated)) =>
           val oldByNumber = ValidatePdf.objsByNumber(old.pdf)

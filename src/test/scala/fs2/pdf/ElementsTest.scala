@@ -33,7 +33,7 @@ extends Specification
       .andThen(Write.bytes("test-out.pdf"))
 
   "parse pdf" >>
-  ProcessJarPdf.processWith("books/praxis")(pipe)
+  ProcessJarPdf.processWith("books/xref-stream")(pipe)
     .semiflatMap(_.compile.toList)
     .value
     .unsafeRunSync

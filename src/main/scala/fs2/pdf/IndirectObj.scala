@@ -41,7 +41,7 @@ trait IndirectObjCodec
     str("stream") <~ choice(lf, crlf)
 
   def streamBitLength(data: Prim): Attempt[Long] =
-    ParseObjects.streamLength(data).map(_ * 8)
+    Content.streamLength(data).map(_ * 8)
 
   /**
     * Find the end of a content stream.
@@ -55,8 +55,8 @@ trait IndirectObjCodec
     */
   def stripStream(data: Prim)(bits: BitVector): Attempt[DecodeResult[BitVector]] =
     for {
-      end <- ParseObjects.endstreamIndex(bits.bytes)
-      length <- ParseObjects.streamLength(data)
+      end <- Content.endstreamIndex(bits.bytes)
+      length <- Content.streamLength(data)
       } yield {
         val payload =
           if (length > end + 2) stripNewline(bits.bytes.take(end)).bits

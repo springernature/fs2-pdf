@@ -1,12 +1,13 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
 import cats.implicits._
 import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.BitVector
 import scodec.interop.cats.{AttemptMonadErrorInstance, DecoderMonadInstance}
 
-case class XrefStream(tables: List[Xref.Table], trailer: Trailer)
+case class XrefStream(tables: NonEmptyList[Xref.Table], trailer: Trailer)
 
 object XrefStream
 {
@@ -64,11 +65,11 @@ object XrefStream
   def trailerSize(data: Prim.Dict): Option[BigDecimal] =
     Prim.Dict.path("Size")(data) { case Prim.Number(size) => size }.toOption
 
-  def apply(data: Prim.Dict)(stream: Parsed.Stream): Attempt[XrefStream] =
+  def apply(data: Prim.Dict)(stream: BitVector): Attempt[XrefStream] =
     for {
-      uncompressed <- stream.data.value
-      (entryCount, tables) <- decodeXrefStream(data, uncompressed)
-    } yield XrefStream(tables, Trailer(trailerSize(data).getOrElse(entryCount), cleanTrailer(data)))
+      (entryCount, tables) <- decodeXrefStream(data, stream)
+      nonEmptyTables <- Codecs.attemptNel("no tables in xref stream")(tables)
+    } yield XrefStream(nonEmptyTables, Trailer(trailerSize(data).getOrElse(entryCount), cleanTrailer(data)))
 }
 
 object XrefStreamCodec

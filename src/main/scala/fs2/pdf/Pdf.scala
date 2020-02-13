@@ -3,63 +3,18 @@ package pdf
 
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.IO
-import cats.implicits._
 import fs2.{Pipe, Pull, Stream}
 import scodec.Attempt
 import scodec.bits.{BitVector, ByteVector}
-import scodec.interop.cats.AttemptMonadErrorInstance
-
-case class Page(index: Obj.Index, data: Prim.Dict)
-
-object Page
-{
-  object fromStreamPrim
-  {
-    def unapply(streamData: (Long, Prim)): Option[Page] =
-    streamData match {
-      case (number, Prim.tpe("Page", data)) =>
-        Some(Page(Obj.Index(number, 0), data))
-      case _ =>
-        None
-    }
-  }
-}
-
-case class PageDir(index: Obj.Index, data: Prim.Dict)
-
-case class FontResource(index: Obj.Index, data: Prim.Dict)
-
-case class IndirectArray(index: Obj.Index, data: Prim.Array)
-
-case class Image(obj: Obj, codec: Image.Codec, stream: Parsed.Stream)
-
-object Image
-{
-  sealed trait Codec
-
-  object Codec
-  {
-    case object Jpg
-    extends Codec
-
-    case object Ccitt
-    extends Codec
-
-    def extension: Codec => String = {
-      case Jpg => "jpg"
-      case Ccitt => "tiff"
-    }
-  }
-}
 
 sealed trait PdfObj
 
 object PdfObj
 {
-  case class Indirect(obj: IndirectObj)
+  case class Content(obj: IndirectObj)
   extends PdfObj
 
-  case class Stream(obj: Obj)
+  case class Data(obj: Obj)
   extends PdfObj
 
   case class Unparsable(index: Obj.Index, data: ByteVector)
@@ -74,19 +29,21 @@ object Pdf
 {
   def objectNumbersRaw(numbers: List[Long]): Pipe[IO, Byte, (Obj, Option[BitVector])] =
     _
-      .through(StreamParser.objects(Log.noop))
+      .through(StreamParser.topLevel)
       .collect {
-        case Parsed.IndirectObj(o @ Obj(Obj.Index(n, _), _), s, _) if numbers.contains(n) =>
-          (o, s.map(_.original))
+        case TopLevel.IndirectObj(IndirectObj(index @ Obj.Index(n, _), data, s)) if numbers.contains(n) =>
+          (Obj(index, data), s)
       }
 
   def objectNumbers(numbers: List[Long]): Pipe[IO, Byte, (Obj, Option[BitVector])] =
     _
-      .through(StreamParser.objects(Log.noop))
+      .through(StreamParser.decode(Log.noop))
       .collect {
-        case Parsed.IndirectObj(o @ Obj(Obj.Index(n, _), _), s, _) if numbers.contains(n) =>
-          s.traverse(a => StreamUtil.attemptStream(s"stream of object $n")(a.data.value))
-            .map(a => (o, a))
+        case Decoded.ContentObj(obj @ Obj(Obj.Index(n, _), _), _, stream) if numbers.contains(n) =>
+          StreamUtil.attemptStream(s"stream of object $n")(stream.value)
+            .map(a => (obj, Some(a)))
+        case Decoded.DataObj(obj @ Obj(Obj.Index(n, _), _)) if numbers.contains(n) =>
+          Stream((obj, None))
       }
       .flatten
 
@@ -148,39 +105,27 @@ object Pdf
       def obj(o: PdfObj): AssemblyState =
         copy(objs = o :: objs)
 
-      def xref(x: Xref): AssemblyState =
-        copy(xrefs = x :: xrefs)
-
       def error(e: String): AssemblyState =
         copy(errors = e :: errors)
     }
 
-    def processParsed(state: AssemblyState): Parsed => AssemblyState = {
-      case Parsed.IndirectObj(obj @ Obj.tpe("XRef", data), Some(stream), _) =>
-          XrefStream(data)(stream) match {
-          case Attempt.Successful(XrefStream(h :: t, trailer)) =>
-            state.xref(Xref(NonEmptyList(h, t), trailer, 0))
-          case Attempt.Successful(XrefStream(Nil, _)) =>
-            state.error(s"broken xref stream for ${obj.index}: empty")
-          case Attempt.Failure(cause) =>
-            state.error(s"broken xref stream for ${obj.index}: ${cause.messageWithContext}")
-        }
-      case Parsed.IndirectObj(obj, stream, _) =>
-        stream.traverse(_.data.value) match {
+    def processParsed(state: AssemblyState): Decoded => AssemblyState = {
+      case Decoded.ContentObj(obj, _, stream) =>
+        stream.value match {
           case Attempt.Successful(s) =>
-            state.obj(PdfObj.Indirect(IndirectObj(obj.index, obj.data, s)))
+            state.obj(PdfObj.Content(IndirectObj(obj.index, obj.data, Some(s))))
           case Attempt.Failure(cause) =>
             state.error(s"broken stream for ${obj.index}: ${cause.messageWithContext}")
         }
-      case Parsed.Xref(xref) =>
-        state.xref(xref)
-      case Parsed.StreamObject(obj) =>
-        state.obj(PdfObj.Stream(obj))
+      case Decoded.Meta(xrefs, _, _) =>
+        state.copy(xrefs = xrefs.toList)
+      case Decoded.DataObj(obj) =>
+        state.obj(PdfObj.Data(obj))
       case _ =>
         state
     }
 
-    def processParsedPull(state: AssemblyState)(parsed: Parsed): Pull[IO, Nothing, AssemblyState] =
+    def processParsedPull(state: AssemblyState)(parsed: Decoded): Pull[IO, Nothing, AssemblyState] =
       Pull.pure(processParsed(state)(parsed))
 
     def consPdf(objs: List[PdfObj], xrefs: List[Xref]): Validated[String, Pdf] =
@@ -197,14 +142,14 @@ object Pdf
       NonEmptyList.fromList(errors)
         .fold(Validated.validNel[String, Unit](()))(Validated.invalid(_))
 
-    def pull(parsed: Stream[IO, Parsed]): Pull[IO, ValidatedNel[String, ValidatedPdf], Unit] =
+    def pull(parsed: Stream[IO, Decoded]): Pull[IO, ValidatedNel[String, ValidatedPdf], Unit] =
       StreamUtil.pullState(processParsedPull)(parsed)(AssemblyState(Nil, Nil, Nil))
         .flatMap {
           case AssemblyState(objs, xrefs, errors) =>
             Pull.output1(consPdf(objs, xrefs).toValidatedNel.map(ValidatedPdf(_, validateErrors(errors))))
         }
 
-    def apply(parsed: Stream[IO, Parsed]): IO[ValidatedNel[String, ValidatedPdf]] =
+    def apply(parsed: Stream[IO, Decoded]): IO[ValidatedNel[String, ValidatedPdf]] =
       pull(parsed)
         .stream
         .compile
