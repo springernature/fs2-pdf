@@ -84,7 +84,7 @@ object Decode
       Err("no Size in xref stream data"),
     )
 
-  def extractTrailer: Prim => Option[Attempt[Either[Trailer, List[Decoded]]]] = {
+  def extractMetadata: Prim => Option[Attempt[Either[Trailer, List[Decoded]]]] = {
     case Prim.tpe("XRef", data) =>
       Some(trailer(data).map(Left(_)))
     case _ =>
@@ -96,7 +96,7 @@ object Decode
   (rawStream: BitVector, stream: Eval[Attempt[BitVector]])
   : Attempt[Either[Trailer, List[Decoded]]] =
     decodeObjectStream(stream)(data)
-      .orElse(extractTrailer(data))
+      .orElse(extractMetadata(data))
       .getOrElse(Attempt.successful(Right(List(Decoded.ContentObj(Obj(index, data), rawStream, stream)))))
 
   def contentObj
@@ -113,6 +113,8 @@ object Decode
   def pullTopLevel(state: State): TopLevel => Pull[IO, Decoded, State] = {
     case TopLevel.IndirectObj(IndirectObj(index, data, Some(stream))) =>
       contentObj(state)(index, data, stream)
+    case TopLevel.IndirectObj(IndirectObj(_, Prim.Dict(data), None)) if data.contains("Linearized") =>
+      Pull.pure(state)
     case TopLevel.IndirectObj(IndirectObj(index, data, None)) =>
       Pull.output1(Decoded.DataObj(Obj(index, data))).as(state)
     case TopLevel.Version(version) =>
