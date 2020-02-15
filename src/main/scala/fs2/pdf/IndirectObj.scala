@@ -29,7 +29,7 @@ private[pdf]
 trait IndirectObjCodec
 {
   import scodec.codecs._
-  import Codecs.{stripNewline, newline, nlWs, skipWs, str, lf, crlf, productCodec}
+  import Codecs.{stripNewline, nlWs, skipWs, str, lf, crlf, productCodec, ws}
 
   /**
     * Decodes the leading `stream` keyword for a content stream.
@@ -40,36 +40,41 @@ trait IndirectObjCodec
   def streamStartKeyword: Codec[Unit] =
     str("stream") <~ choice(lf, crlf)
 
-  def streamBitLength(data: Prim): Attempt[Long] =
-    Content.streamLength(data).map(_ * 8)
+  val endstreamTest: Codec[Unit] =
+    ws ~> constant(Content.endstream)
 
   /**
     * Find the end of a content stream.
     * In the case of valid data, this amounts to simply using the 'Length' hint from the object dictionary.
-    * We compensate for errors in this parameter by comparing the index of the `endstream` keyword with the 'Length'
-    * hint and stripping manually in the error case.
+    * We compensate for errors in this parameter by verifying the presence of the 'endstream' keyword right after the
+    * data obtained by using the 'Length' hint and stripping manually in the error case.
     *
     * @param data The object dictionary describing the stream
-    * @param bits the remaining bits of the object
+    * @param bytes the remaining bytes of the object
     * @return The stream payload
     */
-  def stripStream(data: Prim)(bits: BitVector): Attempt[DecodeResult[BitVector]] =
+  def stripStream(data: Prim)(bytes: ByteVector): Attempt[DecodeResult[BitVector]] =
     for {
-      end <- Content.endstreamIndex(bits.bytes)
+      end <- Content.endstreamIndex(bytes)
       length <- Content.streamLength(data)
-      } yield {
-        val payload =
-          if (length > end + 2) stripNewline(bits.bytes.take(end)).bits
-          else bits.bytes.take(length).bits
-        DecodeResult(payload, bits.drop(payload.size))
+    } yield {
+      val payloadByLength = bytes.take(length).bits
+      val remainderByLength = bytes.drop(length).bits
+      endstreamTest.decode(remainderByLength) match {
+        case Attempt.Successful(_) =>
+          DecodeResult(payloadByLength, remainderByLength)
+        case Attempt.Failure(_) =>
+          val payload = stripNewline(bytes.take(end))
+          DecodeResult(payload.bits, bytes.drop(payload.size).bits)
       }
+    }
 
   def streamPayload(data: Prim): Codec[BitVector] =
-    Codec(bits, Decoder(stripStream(data) _))
+    Codec(bits, Decoder(bits => stripStream(data)(bits.bytes)))
 
   def streamCodec(data: Prim): Codec[Option[BitVector]] =
     optional(recover(streamStartKeyword),
-      streamPayload(data) <~ newline <~ str("endstream") <~ nlWs
+      streamPayload(data) <~ nlWs <~ str("endstream") <~ nlWs
     )
 
   def objHeader: Codec[Obj.Index] =
