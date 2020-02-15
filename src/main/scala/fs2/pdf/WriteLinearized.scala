@@ -58,51 +58,103 @@ object WriteLinearized
         (
           encoded.map(_.xref),
           encoded.map(_.bytes),
-          Trailer(count, trailer ++ Prim.dict("Size" -> Prim.num(count))),
+          Trailer(count, trailer ++ Prim.dict("Size" -> Prim.num(count)), None),
         )
       }
 
-  case class FirstPage(xref: ByteVector, xrefLength: Long, encLin: ByteVector, data: NonEmptyList[ByteVector])
+  case class FirstPage(xref: ByteVector, xrefLength: Long, data: NonEmptyList[ByteVector], firstObjNumber: Long)
+
+  val linearizationSize: Long =
+    100
 
   def encodeFirstPage[A]
-  (linearization: Prim.Dict, trailerData: Prim.Dict, totalCount: Int)
+  (trailerData: Prim.Dict, totalCount: Int)
   (headerSize: Long)
   (firstPageChunk: Chunk[Part[A]])
   : Attempt[FirstPage] =
     for {
       firstPage <- Codecs.attemptNel("first page objects")(firstPageChunk)
       firstNumber <- objectNumber(firstPage.head)
-      encLin <- EncodedObj.indirect(IndirectObj.nostream(firstNumber - 1, linearization))
-      xrefOffset = headerSize + encLin.xref.size
+      xrefOffset = headerSize + linearizationSize
       (entries, data, trailer) <- encodeFirstPageParts(firstPage, totalCount, trailerData)
       xrefLength <- calculateXrefLength(entries.size + 1, totalCount, trailer.data)
       encXref <- WritePdf.encodeXref(entries, trailer, xrefOffset + xrefLength)
     } yield FirstPage(
       encXref,
       xrefOffset + data.map(_.size).fold + xrefLength,
-      encLin.bytes,
       data,
+      firstNumber,
+    )
+
+  case class LinearizationParams(
+    fileSize: Long,
+    firstPageObjNumber: Long,
+    hintStreamOffset: Long,
+    hintStreamLength: Long,
+    firstPageEndOffset: Long,
+    pageCount: Long,
+    mainXrefOffset: Long,
+  )
+
+  def linearizationDict: LinearizationParams => Prim.Dict = {
+    case LinearizationParams(
+      fileSize,
+      firstPageObjNumber,
+      hintStreamOffset,
+      hintStreamLength,
+      firstPageEndOffset,
+      pageCount,
+      mainXrefOffset,
+    ) =>
+      Prim.dict(
+        "Linearized" -> Prim.Number(1),
+        "L" -> Prim.Number(fileSize),
+        "H" -> Prim.Array.nums(hintStreamOffset, hintStreamLength),
+        "O" -> Prim.Number(firstPageObjNumber),
+        "E" -> Prim.Number(firstPageEndOffset),
+        "N" -> Prim.Number(pageCount),
+        "T" -> Prim.Number(mainXrefOffset),
+      )
+  }
+
+  def linearizationObj(number: Long, data: Prim): IndirectObj =
+    IndirectObj(Obj.Index(number, 0), data, None)
+
+  def createLinearizationPull(number: Long, params: LinearizationParams): Pull[IO, Nothing, ByteVector] =
+    StreamUtil.attemptPull("create linearization object")(
+      IndirectObj.Codec_IndirectObj.encode(linearizationObj(number, linearizationDict(params))).map(_.bytes)
+    )
+
+  def linParams(totalCount: Int, fileSize: Long): LinearizationParams =
+    LinearizationParams(
+      fileSize,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
     )
 
   case class FirstPageOffsets(offset: Long, startxref: Long)
 
   def outputFirstPage
-  (linearization: Prim.Dict, trailer: Prim.Dict, totalCount: Int, headerSize: Long)
+  (trailer: Prim.Dict, totalCount: Int, headerSize: Long, fileSize: Long)
   (firstPage: Chunk[Part[Trailer]])
   : Pull[IO, ByteVector, FirstPageOffsets] = {
-    val attempt = encodeFirstPage(linearization, trailer, totalCount)(headerSize)(firstPage)
+    val attempt = encodeFirstPage(trailer, totalCount)(headerSize)(firstPage)
     StreamUtil.attemptPullWith("encoding first page")(attempt) {
-      case FirstPage(xref, xrefLength, encLin, data) =>
+      case FirstPage(xref, xrefLength, data, firstNumber) =>
         for {
-          _ <- Pull.output1(encLin)
+          _ <- createLinearizationPull(firstNumber - 1, linParams(totalCount, fileSize)).flatMap(Pull.output1)
           _ <- Pull.output1(xref)
           _ <- Pull.output(Chunk.seq(data.toList))
-        } yield FirstPageOffsets(headerSize + data.map(_.size).fold + xrefLength, headerSize + encLin.size)
+        } yield FirstPageOffsets(headerSize + data.map(_.size).fold + xrefLength, headerSize + linearizationSize)
     }
   }
 
   def pullFirstPage
-  (linearization: Prim.Dict, trailerData: Prim.Dict, count: Int, totalCount: Int, headerSize: Long)
+  (trailerData: Prim.Dict, count: Int, totalCount: Int, headerSize: Long, fileSize: Long)
   (parts: Stream[IO, Part[Trailer]])
   : Pull[IO, ByteVector, Unit] =
     parts
@@ -110,8 +162,8 @@ object WriteLinearized
       .unconsN(count, false)
       .flatMap {
         case Some((firstPage, tail)) =>
-          val finalTrailer = Trailer(totalCount - count, trailerData)
-          outputFirstPage(linearization, trailerData, totalCount, headerSize)(firstPage)
+          val finalTrailer = Trailer(totalCount - count, trailerData, None)
+          outputFirstPage(trailerData, totalCount, headerSize, fileSize)(firstPage)
             .flatMap {
               case FirstPageOffsets(offset, _) =>
                 WritePdf.pullParts(tail ++ Stream(Part.Meta(finalTrailer)))(offset)
@@ -122,12 +174,12 @@ object WriteLinearized
       }
 
   def pipe
-  (linearization: Prim.Dict, trailer: Prim.Dict, firstPageCount: Int, totalCount: Int)
+  (trailer: Prim.Dict, firstPageCount: Int, totalCount: Int, fileSize: Long)
   : Pipe[IO, Part[Trailer], ByteVector] =
     WritePdf.consumeVersion(_)
       .flatMap {
         case (offset, tail) =>
-          pullFirstPage(linearization, trailer, firstPageCount, totalCount, offset)(tail)
+          pullFirstPage(trailer, firstPageCount, totalCount, offset, fileSize)(tail)
       }
       .stream
 }
