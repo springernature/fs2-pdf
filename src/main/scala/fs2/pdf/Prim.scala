@@ -292,7 +292,7 @@ trait PrimCodec
   import Codecs._
 
   def Codec_Null: Codec[Null.type] =
-    constantString("null").xmap(_ => Null, _ => ())
+    str("null").xmap(_ => Null, _ => ())
 
   def Codec_Ref: Codec[Ref] =
     ((ascii.long <~ space) ~ ascii.int <~ space <~ char('R'))
@@ -305,8 +305,8 @@ trait PrimCodec
 
   def decodeBool: Decoder[Bool] =
     Decoder.choiceDecoder(
-      constantString("true").map(_ => Bool(true)),
-      constantString("false").map(_ => Bool(false)),
+      str("true").map(_ => Bool(true)),
+      str("false").map(_ => Bool(false)),
     )
 
   def Codec_Bool: Codec[Bool] =
@@ -445,7 +445,7 @@ object Obj
     }
 
     implicit def Codec_Index: Codec[Index] =
-      ((Codecs.ascii.long <~ Codecs.constantString(" ")) ~ (Codecs.ascii.int <~ Codecs.constantString(" obj")))
+      ((Codecs.ascii.long <~ Codecs.str(" ")) ~ (Codecs.ascii.int <~ Codecs.str(" obj")))
         .xmap(Obj.Index(_, _), a => (a.number, a.generation))
   }
 

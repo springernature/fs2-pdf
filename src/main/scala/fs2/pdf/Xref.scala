@@ -101,39 +101,40 @@ object StartXref
 
 trait XrefCodec
 {
-  import scodec.codecs._
+  import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
+  import Codecs._
 
   def offset: Codec[String] =
-    Codecs.stringOf(10).withContext("offset") <~ Codecs.space.withContext("offset space")
+    stringOf(10).withContext("offset") <~ space.withContext("offset space")
 
   def generation: Codec[String] =
-    Codecs.stringOf(5).withContext("generation") <~ Codecs.space.withContext("generation space")
+    stringOf(5).withContext("generation") <~ space.withContext("generation space")
 
   implicit def regularIndex: Codec[Xref.Index.Regular] =
-    (Codecs.productCodec(offset ~ generation): Codec[Xref.Index.Regular])
+    (productCodec(offset ~ generation): Codec[Xref.Index.Regular])
       .withContext("regular index")
 
   implicit def compressedIndex: Codec[Xref.Index.Compressed] =
-    (Codecs.productCodec(Codecs.ascii.long ~ Codecs.ascii.int): Codec[Xref.Index.Compressed])
+    (productCodec(ascii.long ~ ascii.int): Codec[Xref.Index.Compressed])
       .withContext("compressed index")
 
   def index: Codec[Xref.Index] =
     Codec.coproduct[Xref.Index].choice
 
   def entryType: Codec[Xref.EntryType] =
-    byte.exmap(Xref.EntryType.from, Xref.EntryType.to)
+    scodec.codecs.byte.exmap(Xref.EntryType.from, Xref.EntryType.to)
 
   def twoByteNewline: Codec[Unit] =
     choice(
-      Codecs.space.withContext("end space") <~ Codecs.lf.withContext("end newline"),
-      Codecs.crlf.withContext("end newline"),
+      space.withContext("end space") <~ lf.withContext("end newline"),
+      crlf.withContext("end newline"),
     )
 
   def entry: Codec[Xref.Entry] =
-    Codecs.productCodec(index ~ entryType <~ twoByteNewline)
+    productCodec(index ~ entryType <~ twoByteNewline)
 
   def range: Codec[(Long, Int)] =
-    (Codecs.ascii.long.withContext("offset") <~ Codecs.ws) ~ Codecs.ascii.int.withContext("size") <~ Codecs.newline
+    (ascii.long.withContext("offset") <~ ws) ~ ascii.int.withContext("size") <~ newline
 
   def validateTrailer(data: Prim.Dict): Attempt[Trailer] =
     Prim.Dict.path("Size")(data) {
@@ -146,13 +147,13 @@ trait XrefCodec
       .exmap(validateTrailer, a => Attempt.successful(a.data))
 
   def trailerKw: Codec[Unit] =
-    Codecs.str("trailer") <~ Codecs.nlWs
+    str("trailer") <~ nlWs
 
   def Codec_Trailer: Codec[Trailer] =
-    trailerKw ~> trailerDict <~ Codecs.nlWs
+    trailerKw ~> trailerDict <~ nlWs
 
   def startxref: Codec[Long] =
-    (Codecs.constantLine("startxref") ~> Codecs.ascii.long.withContext("startxref offset") <~ Codecs.newline)
+    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
       .withContext("startxref")
 
   def table: Codec[Xref.Table] =
@@ -160,18 +161,18 @@ trait XrefCodec
       .flatZip { case (_, size) => listOfN(provide(size), entry).withContext("entries") }
       .withContext("table")
       .exmap(
-        { case ((o, _), es) => Codecs.attemptNel("xref table entries")(es).map(e => Xref.Table(o, e)) },
+        { case ((o, _), es) => attemptNel("xref table entries")(es).map(e => Xref.Table(o, e)) },
         t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
   def mainCodec: Codec[Xref] =
-    Codecs.productCodec(
-      Codecs.constantLine("xref") ~> Codecs.manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
+    productCodec(
+      str("xref") ~> nlWs ~> manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
       Codec_Trailer ~
       startxref <~
-      Codecs.str("%%EOF") <~ optional(bitsRemaining, Codecs.nlWs).unit(Some(()))
+      str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
     )
 
   implicit def Codec_Xref: Codec[Xref] =
-    Codecs.withoutComments(mainCodec)
+    withoutComments(mainCodec)
 }

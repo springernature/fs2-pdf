@@ -204,20 +204,14 @@ object Codecs
   def line(desc: String): Codec[ByteVector] =
     decodeUntilAny(desc)(bytes)(newlines)
 
-  def utf8Line(desc: String): Codec[String] =
-    decodeUntilAny(desc)(utf8)(newlines)
-
   def byte(data: Byte): Codec[Unit] =
     constant(ByteVector.fromByte(data))
 
   def char(data: Char): Codec[Unit] =
     byte(data.toByte)
 
-  def constantString(data: String): Codec[Unit] =
-    constant(ByteVector(data.getBytes)).withContext(s"constant string `$data`")
-
   def str(data: String): Codec[Unit] =
-    constantString(data)
+    constant(ByteVector(data.getBytes)).withContext(s"constant string `$data`")
 
   def takeCharsUntilAny(chars: List[Char])(bits: BitVector): Attempt[DecodeResult[String]] = {
     val result = bits.bytes.takeWhile(a => !chars.contains(a)).bits
@@ -227,9 +221,6 @@ object Codecs
 
   def charsNoneOf(chars: List[Char]): Codec[String] =
     Codec(utf8, Decoder(takeCharsUntilAny(chars) _))
-
-  def constantLine(content: String): Codec[Unit] =
-    str(content) <~ newline
 
   def space: Codec[Unit] =
     byte(' ')
