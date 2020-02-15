@@ -3,7 +3,8 @@ package pdf
 
 import cats.data.NonEmptyList
 import cats.implicits._
-import scodec.{Attempt, Codec, DecodeResult, Decoder, Err}
+import codec.Codecs
+import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.BitVector
 import scodec.interop.cats.{AttemptMonadErrorInstance, DecoderMonadInstance}
 
@@ -20,7 +21,7 @@ object XrefStream
               case (z, List(offset, size)) =>
                 Attempt.successful((offset, size) :: z)
               case _ =>
-                Codecs.fail("broken xref stream index")
+                Scodec.fail("broken xref stream index")
             }
           }
           .recoverWith { case _ => Attempt.successful(List((0, size))) }
@@ -38,7 +39,7 @@ object XrefStream
         case List(width1, width2, width3) if entrySize == (width1 + width2 + width3) =>
           Attempt.successful((if (width1 == 0) 1 else width1, width2, width3))
         case a =>
-          Codecs.fail(s"invalid xref stream field widths: $a (size: $size, entry size: $entrySize)")
+          Scodec.fail(s"invalid xref stream field widths: $a (size: $size, entry size: $entrySize)")
     }
   }
 
@@ -68,7 +69,7 @@ object XrefStream
   def apply(data: Prim.Dict)(stream: BitVector): Attempt[XrefStream] =
     for {
       (entryCount, tables) <- decodeXrefStream(data, stream)
-      nonEmptyTables <- Codecs.attemptNel("no tables in xref stream")(tables)
+      nonEmptyTables <- Scodec.attemptNel("no tables in xref stream")(tables)
     } yield XrefStream(
       nonEmptyTables,
       Trailer(trailerSize(data).getOrElse(entryCount), cleanTrailer(data), data.ref("Root")),
@@ -83,7 +84,7 @@ object XrefStreamCodec
     case ((0, nextFree), generation) => Attempt.successful(Xref.entry(nextFree, generation, Xref.EntryType.Free))
     case ((1, offset), generation) => Attempt.successful(Xref.entry(offset, generation, Xref.EntryType.InUse))
     case ((2, number), index) => Attempt.successful(Xref.compressed(number, index, Xref.EntryType.InUse))
-    case a => Codecs.fail(s"invalid xref stream entry: $a")
+    case a => Scodec.fail(s"invalid xref stream entry: $a")
   }
 
   def entryField[A](num: Int, width: BigDecimal, default: A)(dec: => Codec[A]): Codec[A] =

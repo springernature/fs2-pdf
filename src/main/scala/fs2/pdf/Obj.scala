@@ -1,6 +1,7 @@
 package fs2
 package pdf
 
+import codec.{Codecs, Text, Whitespace}
 import scodec.Codec
 import scodec.codecs.liftF2ToNestedTupleF
 
@@ -9,7 +10,8 @@ case class Obj(index: Obj.Index, data: Prim)
 object Obj
 {
   import Whitespace.{nlWs, skipWs, ws}
-  import Codecs.{ascii, str, productCodec}
+  import Codecs.{productCodec}
+  import Text.{ascii, str}
 
   case class Index(number: Long, generation: Int)
 

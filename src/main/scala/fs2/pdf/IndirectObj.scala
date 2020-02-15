@@ -2,6 +2,7 @@ package fs2
 package pdf
 
 import cats.implicits._
+import codec.{Codecs, Newline, Whitespace, Text}
 import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.{BitVector, ByteVector}
 
@@ -31,7 +32,8 @@ trait IndirectObjCodec
   import scodec.codecs._
   import Newline.{stripNewline, lf, crlf}
   import Whitespace.{nlWs, skipWs, ws}
-  import Codecs.{str, productCodec}
+  import Codecs.{productCodec}
+  import Text.{str}
 
   /**
     * Decodes the leading `stream` keyword for a content stream.

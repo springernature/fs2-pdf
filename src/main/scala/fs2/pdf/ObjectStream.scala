@@ -1,6 +1,7 @@
 package fs2
 package pdf
 
+import codec.{Codecs, Text, Whitespace}
 import scodec.Codec
 
 case class ObjectStream(objs: List[Obj])
@@ -27,10 +28,10 @@ private[pdf] trait ObjectStreamCodec
   // TODO this sets the offset to 0. it should be calculated from the length of the encoded objects
   // so this must probably be completely separate de- and encoders
   def number: Codec[Long] =
-    Codecs.ascii.long <~ Whitespace.ws <~ Codecs.ascii.long.unit(0) <~ Whitespace.ws
+    Text.ascii.long <~ Whitespace.ws <~ Text.ascii.long.unit(0) <~ Whitespace.ws
 
   implicit def Codec_ObjectStream: Codec[ObjectStream] =
-    Codecs.manyTill(a => !a.bytes.headOption.exists(Codecs.isDigit))(number)
+    Codecs.manyTill(a => !a.bytes.headOption.exists(Text.isDigit))(number)
       .flatZip(numbers => listOfN(provide(numbers.size), Prim.Codec_Prim))
       .xmap(decode, encode _)
 }

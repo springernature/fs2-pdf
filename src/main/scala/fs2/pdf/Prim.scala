@@ -5,6 +5,7 @@ import scala.util.Try
 
 import cats.data.NonEmptyList
 import cats.implicits._
+import codec.{Codecs, Text, Whitespace}
 import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder, Err}
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs.liftF2ToNestedTupleF
@@ -89,7 +90,7 @@ extends PrimCodec
     def numbers(keys: String*)(data: Prim): Attempt[List[BigDecimal]] =
       array(keys: _*)(data).flatMap(_.traverse {
         case Number(data) => Attempt.successful(data)
-        case a => Codecs.fail(s"wrong type: $a")
+        case a => Scodec.fail(s"wrong type: $a")
       })
 
     def collectRefs(keys: String*)(data: Prim): Attempt[List[Long]] =
@@ -108,13 +109,13 @@ extends PrimCodec
       case (update @ Dict(_), original @ Dict(_)) =>
         deepMerge(update)(original)
       case (update, original @ Dict(_)) =>
-        Codecs.fail(s"incompatible types for Prim.Dict.deepMerge: $key | $update | $original")
+        Scodec.fail(s"incompatible types for Prim.Dict.deepMerge: $key | $update | $original")
       case (Array(update), Array(original)) =>
         Attempt.successful(Array(original ++ update))
       case (update, Array(original)) =>
         Attempt.successful(Array(original :+ update))
       case (update, original) =>
-        Codecs.fail(s"incompatible types for Prim.Dict.deepMerge: $key | $update | $original")
+        Scodec.fail(s"incompatible types for Prim.Dict.deepMerge: $key | $update | $original")
     }
 
     def deepMerge(update: Dict)(original: Dict): Attempt[Dict] =
@@ -294,7 +295,8 @@ trait PrimCodec
   import scodec.codecs.{optional, recover, lazily, bytes}
   import Prim.{str => _, _}
   import Whitespace.{space, ws, skipWs, nlWs}
-  import Codecs.{str, ascii, char, fail, opt, ranges, bracketChar, bracketMany, charsNoneOf}
+  import Codecs.{opt, bracketChar, bracketMany}
+  import Text.{str, ascii, char, ranges, charsNoneOf}
 
   def Codec_Null: Codec[Null.type] =
     str("null").xmap(_ => Null, _ => ())
@@ -328,7 +330,7 @@ trait PrimCodec
     num.data.toString.split(raw"\.").toList match {
       case List(pre, post) => Attempt.successful(((None, pre), Some(post)))
       case List(n) => Attempt.successful(((None, n), None))
-      case a => fail(s"invalid number: $num ($a)")
+      case a => Scodec.fail(s"invalid number: $num ($a)")
     }
 
   def Codec_Number: Codec[Number] =
@@ -359,7 +361,7 @@ trait PrimCodec
             case Some(c) =>
               rec(parens)(input.drop(1), output :+ c)
             case None =>
-              fail("could not find closing parenthesis for Str")
+              Scodec.fail("could not find closing parenthesis for Str")
           }
         }
         rec(0)(bits.bytes, ByteVector.empty)

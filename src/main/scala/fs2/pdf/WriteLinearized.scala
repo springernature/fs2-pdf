@@ -14,7 +14,7 @@ object WriteLinearized
   def objectNumber[A]: Part[A] => Attempt[Long] = {
     case Part.Obj(IndirectObj(Obj.Index(n, _), _, _)) => Attempt.successful(n)
     case Part.Unparsable(Obj.Index(n, _), _) => Attempt.successful(n)
-    case _ => Codecs.fail("first part is not an object")
+    case _ => Scodec.fail("first part is not an object")
   }
 
   def encode[A]
@@ -24,9 +24,9 @@ object WriteLinearized
     case Part.Unparsable(index, data) =>
       Attempt.successful(EncodedObj(XrefObjMeta(index, data.size), data))
     case Part.Meta(_) =>
-      Codecs.fail("trailer in first page data")
+      Scodec.fail("trailer in first page data")
     case Part.Version(_) =>
-      Codecs.fail("Part.Version not at the head of stream")
+      Scodec.fail("Part.Version not at the head of stream")
   }
 
   val xrefStatic: String =
@@ -73,7 +73,7 @@ object WriteLinearized
   (firstPageChunk: Chunk[Part[A]])
   : Attempt[FirstPage] =
     for {
-      firstPage <- Codecs.attemptNel("first page objects")(firstPageChunk)
+      firstPage <- Scodec.attemptNel("first page objects")(firstPageChunk)
       firstNumber <- objectNumber(firstPage.head)
       xrefOffset = headerSize + linearizationSize
       (entries, data, trailer) <- encodeFirstPageParts(firstPage, totalCount, trailerData)
@@ -132,7 +132,7 @@ object WriteLinearized
       0,
       0,
       0,
-      0,
+      totalCount,
       0,
     )
 

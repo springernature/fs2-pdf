@@ -4,7 +4,7 @@ package pdf
 import cats.data.NonEmptyList
 import cats.effect.IO
 import fs2.{Pipe, Stream}
-import scodec.{Attempt, Err}
+import scodec.Attempt
 import scodec.bits.BitVector
 
 sealed trait Decoded

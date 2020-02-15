@@ -4,6 +4,7 @@ package pdf
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
+import codec.Codecs
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.BitVector
 

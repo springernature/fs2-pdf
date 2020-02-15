@@ -20,7 +20,7 @@ object Page
           Page(index, data, MediaBox(x, y, w, h))
       }
     case _ =>
-      Codecs.fail("not a Page object")
+      Scodec.fail("not a Page object")
   }
 
   object obj
@@ -40,7 +40,7 @@ object Pages
         case Prim.refs(kids) => Pages(index, data, kids, !data.data.contains("Parent"))
       }
     case _ =>
-      Codecs.fail("not a Pages object")
+      Scodec.fail("not a Pages object")
   }
 
   object obj

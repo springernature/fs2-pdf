@@ -3,6 +3,7 @@ package pdf
 
 import cats.data.NonEmptyList
 import cats.implicits._
+import codec.{Codecs, Newline, Text, Whitespace}
 import scodec.{Attempt, Codec, Err}
 
 case class Trailer(size: BigDecimal, data: Prim.Dict, root: Option[Prim.Ref])
@@ -96,7 +97,7 @@ case class StartXref(offset: Long)
 
 object StartXref
 {
-  import Codecs.{str, ascii}
+  import Text.{str, ascii}
   import Whitespace.nlWs
 
   implicit def Codec_StartXref: Codec[StartXref] =
@@ -110,7 +111,8 @@ trait XrefCodec
   import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
   import Newline.{lf, crlf, newline}
   import Whitespace.{nlWs, ws, space, skipWs}
-  import Codecs.{stringOf, productCodec, ascii, str, attemptNel, manyTill1Codec}
+  import Codecs.{productCodec, manyTill1Codec}
+  import Text.{stringOf, ascii, str}
 
   def offset: Codec[String] =
     stringOf(10).withContext("offset") <~ space.withContext("offset space")
@@ -164,7 +166,7 @@ trait XrefCodec
       .flatZip { case (_, size) => listOfN(provide(size), entry).withContext("entries") }
       .withContext("table")
       .exmap(
-        { case ((o, _), es) => attemptNel("xref table entries")(es).map(e => Xref.Table(o, e)) },
+        { case ((o, _), es) => Scodec.attemptNel("xref table entries")(es).map(e => Xref.Table(o, e)) },
         t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
