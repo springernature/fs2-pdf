@@ -161,11 +161,14 @@ trait XrefCodec
         t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
-  implicit def Codec_Xref: Codec[Xref] =
+  def mainCodec: Codec[Xref] =
     Codecs.productCodec(
       Codecs.constantLine("xref") ~> Codecs.manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
       Codec_Trailer ~
       startxref <~
       Codecs.str("%%EOF") <~ optional(bitsRemaining, Codecs.nlWs).unit(Some(()))
     )
+
+  implicit def Codec_Xref: Codec[Xref] =
+    Codecs.withoutComments(mainCodec)
 }
