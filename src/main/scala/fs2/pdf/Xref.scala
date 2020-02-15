@@ -96,7 +96,8 @@ case class StartXref(offset: Long)
 
 object StartXref
 {
-  import Codecs.{str, nlWs, ascii}
+  import Codecs.{str, ascii}
+  import Whitespace.nlWs
 
   implicit def Codec_StartXref: Codec[StartXref] =
     (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
@@ -107,7 +108,9 @@ object StartXref
 trait XrefCodec
 {
   import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
-  import Codecs._
+  import Newline.{lf, crlf, newline}
+  import Whitespace.{nlWs, ws, space, skipWs}
+  import Codecs.{stringOf, productCodec, ascii, str, attemptNel, manyTill1Codec}
 
   def offset: Codec[String] =
     stringOf(10).withContext("offset") <~ space.withContext("offset space")

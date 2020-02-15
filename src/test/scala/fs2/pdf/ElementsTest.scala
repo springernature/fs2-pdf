@@ -2,7 +2,6 @@ package fs2
 package pdf
 
 import cats.effect.IO
-import cats.implicits._
 import org.specs2.mutable.Specification
 
 object ElementsTest
@@ -30,10 +29,10 @@ extends Specification
   def pipe(log: Log): Pipe[IO, Byte, Unit] =
     StreamParser.elements(log)
       .andThen(Rewrite.simple(())(ElementsTest.collect)(ElementsTest.update))
-      .andThen(_.void)
+      .andThen(Write.bytes("test-out.pdf"))
 
   "parse pdf" >>
-  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/xref-stream")(pipe))
+  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/comm")(pipe))
     .unsafeRunSync
     .must_==(())
 }

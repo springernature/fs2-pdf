@@ -288,11 +288,13 @@ extends PrimCodec
     data.lift("Type").contains(Prim.Name(tpe))
 }
 
+private[pdf]
 trait PrimCodec
 {
   import scodec.codecs.{optional, recover, lazily, bytes}
   import Prim.{str => _, _}
-  import Codecs._
+  import Whitespace.{space, ws, skipWs, nlWs}
+  import Codecs.{str, ascii, char, fail, opt, ranges, bracketChar, bracketMany, charsNoneOf}
 
   def Codec_Null: Codec[Null.type] =
     str("null").xmap(_ => Null, _ => ())
@@ -432,52 +434,4 @@ trait PrimCodec
     )
       .as[Prim]
       .choice
-}
-
-case class Obj(index: Obj.Index, data: Prim)
-
-object Obj
-{
-  case class Index(number: Long, generation: Int)
-
-  object Index
-  {
-    def indexRaw: Index => String = {
-      case Index(number, generation) =>
-        s"$number $generation obj\n"
-    }
-
-    implicit def Codec_Index: Codec[Index] =
-      ((Codecs.ascii.long <~ Codecs.str(" ")) ~ (Codecs.ascii.int <~ Codecs.str(" obj")))
-        .xmap(Obj.Index(_, _), a => (a.number, a.generation))
-  }
-
-  def withDict[A]: Obj => A => Option[(A, Prim.Dict)] = {
-    case Obj(_, data @ Prim.Dict(_)) => a => Some((a, data))
-    case _ => _ => None
-  }
-
-  object tpe
-  {
-    def unapply(obj: Obj): Option[(String, Prim.Dict)] =
-      Prim.tpe.unapply(obj.data)
-  }
-
-  object subtype
-  {
-    def unapply(obj: Obj): Option[(String, Prim.Dict)] =
-      Prim.subtype.unapply(obj.data)
-  }
-
-  implicit def Codec_Obj: Codec[Obj] =
-    Codecs.productCodec(
-      (Codecs.skipWs ~> Index.Codec_Index <~ Codecs.nlWs) ~
-      Prim.Codec_Prim <~ (Codecs.nlWs <~ Codecs.str("endobj") <~ Codecs.nlWs)
-    )
-
-  def codecPreStream: Codec[Obj] =
-    Codecs.productCodec(
-      (Codecs.skipWs ~> Index.Codec_Index <~ Codecs.ws) ~
-      Prim.Codec_Prim <~ Codecs.ws
-    )
 }

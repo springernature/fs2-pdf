@@ -14,17 +14,8 @@ import scodec.codecs._
 import scodec.interop.cats.DecoderMonadInstance
 import shapeless.{Generic, HList}
 
-object Codecs
+object Newline
 {
-  val newlineChar: Char =
-    '\n'
-
-  val newlineByte: Byte =
-    newlineChar.toByte
-
-  val newlineByteVector: ByteVector =
-    ByteVector.fromByte(newlineByte)
-
   val lfBytes: ByteVector =
     hex"0A"
 
@@ -51,6 +42,9 @@ object Codecs
 
   val spaceBytes: ByteVector =
     hex"20"
+
+  val spaceByte: Byte =
+    spaceBytes.toByte()
 
   val tabBytes: ByteVector =
     hex"0B"
@@ -85,9 +79,9 @@ object Codecs
     )
 
   def stripNewline(bytes: ByteVector): ByteVector =
-    if (bytes.takeRight(2) == Codecs.crlfBytes) bytes.dropRight(2)
-    else if (bytes.takeRight(1) == Codecs.lfBytes) bytes.dropRight(1)
-    else if (bytes.takeRight(1) == Codecs.crBytes) bytes.dropRight(1)
+    if (bytes.takeRight(2) == crlfBytes) bytes.dropRight(2)
+    else if (bytes.takeRight(1) == lfBytes) bytes.dropRight(1)
+    else if (bytes.takeRight(1) == crBytes) bytes.dropRight(1)
     else bytes
 
   def stripNewlineBits(bits: BitVector): BitVector =
@@ -95,6 +89,11 @@ object Codecs
 
   def isNewlineByte(b: Byte): Boolean =
     b == lfByte || b == crByte
+}
+
+object Whitespace
+{
+  import Newline._
 
   val whitespaceBytes: Decoder[ByteVector] =
     Decoder.choiceDecoder(
@@ -115,8 +114,8 @@ object Codecs
   def multiWhitespace(encode: Encoder[Unit]): Codec[Unit] =
     Codec(encode, multiWhitespaceDecoder.void)
 
-  def multiWhitespaceChar(c: Char): Codec[Unit] =
-    multiWhitespace(char(c))
+  def multiWhitespaceByte(b: Byte): Codec[Unit] =
+    multiWhitespace(Codecs.byte(b))
 
   val whitespace: Codec[Unit] =
     choice(
@@ -128,35 +127,27 @@ object Codecs
     )
 
   val ws: Codec[Unit] =
-    multiWhitespaceChar(' ')
+    multiWhitespaceByte(spaceByte)
 
   val skipWs: Codec[Unit] =
     multiWhitespace(provide(()))
 
   val whitespaceAsNewline: Codec[Unit] =
-    multiWhitespaceChar(newlineChar)
-
-  val commentStartDecoder: Decoder[Unit] =
-    Decoder { bits =>
-      val bytes = bits.bytes
-      if (bytes.lift(0).contains('%') && !bytes.lift(1).contains('%'))
-        Attempt.successful(DecodeResult((), bytes.drop(1).bits))
-      else
-        Attempt.failure(Err("not a comment"))
-    }
-
-  val commentStart: Codec[Unit] =
-    Codec(provide(()), commentStartDecoder)
-
-  val comment: Codec[Unit] =
-    optional(recover(commentStart), line("comment"))
-      .xmap(_ => (), _ => None)
+    multiWhitespaceByte(lfByte)
 
   val whitespaceAndCommentAsNewline: Codec[Unit] =
-    skipWs ~> comment ~> whitespaceAsNewline
+    skipWs ~> Comment.many.unit(Nil) ~> whitespaceAsNewline
 
   val nlWs: Codec[Unit] =
     whitespaceAndCommentAsNewline
+
+  val space: Codec[Unit] =
+    Codecs.byte(' ')
+}
+
+object Codecs
+{
+  import Newline._
 
   def partialBytes[A]
   (desc: String)
@@ -246,9 +237,6 @@ object Codecs
 
   def charsNoneOf(chars: List[Char]): Codec[String] =
     Codec(utf8, Decoder(takeCharsUntilAny(chars) _))
-
-  def space: Codec[Unit] =
-    byte(' ')
 
   def stringOf(count: Int): Codec[String] =
     bytes(count)
@@ -422,37 +410,6 @@ object Codecs
   val percent: ByteVector =
     ByteVector.fromByte('%')
 
-  def removeComments(bytes: ByteVector): ByteVector = {
-    def dropLine(input: ByteVector): ByteVector =
-      line("comment").decode(input.bits) match {
-        case Attempt.Successful(DecodeResult(_, remainder)) =>
-          remainder.bytes
-        case Attempt.Failure(_) =>
-          ByteVector.empty
-      }
-
-    @annotation.tailrec
-    def spin(input: ByteVector, output: ByteVector): ByteVector =
-      input.indexOfSlice(percent) match {
-        case -1 =>
-          output ++ input
-        case i if input.lift(i + 1).contains('%') =>
-          spin(input.drop(i + 2), output ++ input.take(i + 2))
-        case i =>
-          val extraNewline =
-            if (input.lift(i - 1).map(isNewlineByte).getOrElse(true)) ByteVector.empty
-            else newlineByteVector
-          spin(dropLine(input.drop(i + 1)), output ++ input.take(i) ++ extraNewline)
-      }
-    spin(bytes, ByteVector.empty)
-  }
-
-  def removeCommentsBits(bits: BitVector): BitVector =
-    removeComments(bits.bytes).bits
-
-  def withoutComments[A](inner: Codec[A]): Codec[A] =
-    Codec(inner.encode _, bits => inner.decode(Codecs.removeCommentsBits(bits)))
-
   def attemptNel[T[_]: Foldable, A](desc: String)(as: T[A]): Attempt[NonEmptyList[A]] =
     Attempt.fromOption(NonEmptyList.fromFoldable(as), Err(s"$desc: empty list"))
 
@@ -464,4 +421,23 @@ object Codecs
     case Attempt.Successful(a) => Validated.Valid(a)
     case Attempt.Failure(cause) => Validated.invalidNel(cause.messageWithContext)
   }
+
+  def manyDecoder[A](indicator: Codec[Unit], target: Codec[A]): Decoder[List[A]] = {
+    def one: Decoder[Option[A]] =
+      optional(recover(indicator), target)
+    @annotation.tailrec
+    def spin(acc: List[A])(bits: BitVector): Attempt[DecodeResult[List[A]]] =
+      one.decode(bits) match {
+        case Attempt.Successful(DecodeResult(None, remainder)) =>
+          Attempt.successful(DecodeResult(acc, remainder))
+        case Attempt.Successful(DecodeResult(Some(a), remainder)) =>
+          spin(a :: acc)(remainder)
+        case Attempt.Failure(cause) =>
+          Attempt.Failure(cause)
+      }
+    Decoder(spin(Nil) _).map(_.reverse)
+  }
+
+  def many[A](indicator: Codec[Unit], target: Codec[A]): Codec[List[A]] =
+    Codec(list(target), manyDecoder(indicator, target))
 }

@@ -29,7 +29,9 @@ private[pdf]
 trait IndirectObjCodec
 {
   import scodec.codecs._
-  import Codecs.{stripNewline, nlWs, skipWs, str, lf, crlf, productCodec, ws}
+  import Newline.{stripNewline, lf, crlf}
+  import Whitespace.{nlWs, skipWs, ws}
+  import Codecs.{str, productCodec}
 
   /**
     * Decodes the leading `stream` keyword for a content stream.

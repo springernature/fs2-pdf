@@ -11,7 +11,7 @@ object Version
   implicit def Codec_Version: Codec[Version] =
     Codecs.productCodec(
       Codecs.str("%PDF-") ~>
-      (Codecs.ascii.int ~ (Codecs.str(".") ~> Codecs.ascii.int) <~ Codecs.nlWs) ~
+      (Codecs.ascii.int ~ (Codecs.str(".") ~> Codecs.ascii.int) <~ Whitespace.nlWs) ~
       Codecs.opt(Codecs.str("%") ~> Codecs.line("binary marker"))
     )
 
