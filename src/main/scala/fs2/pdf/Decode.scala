@@ -31,10 +31,7 @@ object Decode
       .map(_.map(_.objs).map(a => Right(a.map(Decoded.DataObj(_)))))
 
   def trailer(data: Prim.Dict): Attempt[Trailer] =
-    Attempt.fromOption(
-      Prim.path("Size")(data) { case Prim.Number(size) => Trailer(size, data) },
-      Err("no Size in xref stream data"),
-    )
+    Trailer.fromData(data)
 
   def extractMetadata(stream: Uncompressed)
   : Prim => Option[Attempt[Either[Xref, List[Decoded]]]] = {

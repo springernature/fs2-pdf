@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets
 import scala.util.Try
 
 import cats.Foldable
-import cats.data.NonEmptyList
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
 import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder, Err}
 import scodec.bits.{BitVector, ByteVector, HexStringSyntax}
@@ -459,4 +459,9 @@ object Codecs
   def nelOfN[A](countCodec: Codec[Int], valueCodec: Codec[A]): Codec[NonEmptyList[A]] =
     listOfN(countCodec, valueCodec)
       .exmap(attemptNel("nelOfN"), a => Attempt.successful(a.toList))
+
+  def validateAttempt[A]: Attempt[A] => ValidatedNel[String, A] = {
+    case Attempt.Successful(a) => Validated.Valid(a)
+    case Attempt.Failure(cause) => Validated.invalidNel(cause.messageWithContext)
+  }
 }

@@ -1,9 +1,9 @@
 package fs2
 package pdf
 
+import cats.data.NonEmptyList
 import org.specs2.mutable.Specification
 import scodec.bits.BitVector
-import cats.data.NonEmptyList
 
 class XrefParseTest
 extends Specification
@@ -28,7 +28,7 @@ extends Specification
   val target: Xref =
     Xref(
       NonEmptyList.one(Xref.Table(0, NonEmptyList.one(Xref.Entry(index, Xref.EntryType.InUse)))),
-      Trailer(1, Prim.dict("Size" -> Prim.num(1))),
+      Trailer(1, Prim.dict("Size" -> Prim.num(1)), Some(Ref(1, 0))),
       1,
     )
 
@@ -46,7 +46,7 @@ extends Specification
     |""".stripMargin
 
   val trailerTarget: Trailer =
-    Trailer(3, Dict(Map("Size" -> Number(3), "Root" -> Ref(15, 0), "Info" -> Ref(16, 0))))
+    Trailer(3, Dict(Map("Size" -> Number(3), "Root" -> Ref(15, 0), "Info" -> Ref(16, 0))), Some(Ref(1, 0)))
 
   "trailer" >>
   Xref.Codec_Trailer.decode(BitVector(trailerRaw.getBytes)).toEither.map(_.value).must(beRight(trailerTarget))

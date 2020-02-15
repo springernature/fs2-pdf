@@ -5,6 +5,7 @@ import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.IO
 import cats.implicits._
 import fs2.Stream
+import scodec.Attempt
 
 case class ContentRef(owner: Long, target: Long)
 
@@ -35,7 +36,10 @@ object ValidatePdf
     }
 
   def indirect(pdf: Pdf): List[IndirectObj] =
-    pdf.objs.collect { case PdfObj.Content(obj) => obj }
+    pdf.objs.collect {
+      case PdfObj.Content(obj) => obj
+      case PdfObj.Data(obj) => IndirectObj(obj.index, obj.data, None)
+    }
 
   def validateContentStream(byNumber: Map[Long, IndirectObj]): ContentRef => ValidatedNel[String, Unit] = {
     case ContentRef(owner, target) =>
@@ -51,6 +55,47 @@ object ValidatePdf
       }
   }
 
+  def collectPages(byNumber: Map[Long, IndirectObj])(root: IndirectObj)
+  : ValidatedNel[String, (NonEmptyList[Page], NonEmptyList[Pages])] = {
+    def spin(obj: IndirectObj): ValidatedNel[String, (List[Page], List[Pages])] =
+      obj match {
+        case Pages.obj(pages @ Pages(_, _, kids, _)) =>
+          kids
+            .map(_.number)
+            .foldMap(n => opt(s"page $n doesn't exist")(byNumber.lift(n)).toList)
+            .foldMap(spin)
+            .map { case (p, ps) => (p, pages :: ps) }
+        case Page.obj(page) =>
+          Validated.valid((List(page), Nil))
+        case _ =>
+          Validated.invalidNel(s"object $obj is neither Pages nor Page")
+      }
+    spin(root).andThen {
+      case (_, Nil) => Validated.invalidNel("no Pages objects in the catalog")
+      case (Nil, _) => Validated.invalidNel("no Page objects in the page tree")
+      case (page1 :: pagetail, pages1 :: pagestail) =>
+        Validated.valid((NonEmptyList(page1, pagetail), NonEmptyList(pages1, pagestail)))
+    }
+  }
+
+  def opt[A](error: String)(oa: Option[A]): ValidatedNel[String, A] =
+    Validated.fromOption(oa, NonEmptyList.one(error))
+
+  def att[A](error: String)(aa: Attempt[A]): ValidatedNel[String, A] =
+    opt(error)(aa.toOption)
+
+  def validatePages(byNumber: Map[Long, IndirectObj], pdf: Pdf): ValidatedNel[String, Unit] = {
+    Validated.fromOption(pdf.trailer.root, NonEmptyList.one("no Root in trailer"))
+      .andThen(catRef => opt("couldn't find catalog")(byNumber.lift(catRef.number)))
+      .andThen(cat => att("no Pages in catalog")(Prim.Dict.path("Pages")(cat.data)( { case r @ Prim.Ref(_, _) => r } )))
+      .andThen(rootRef => opt("couldn't find root Pages")(byNumber.lift(rootRef.number)))
+      .andThen(collectPages(byNumber))
+      .andThen { a =>
+        println(a)
+        Validated.valid(())
+      }
+  }
+
   def validateContentStreams(byNumber: Map[Long, IndirectObj], refs: Refs): ValidatedNel[String, Unit] =
     refs.contents.foldMap(validateContentStream(byNumber))
 
@@ -58,8 +103,10 @@ object ValidatePdf
     indirect(pdf).map(a => (a.index.number, a)).toMap
 
   def apply(pdf: Pdf): ValidatedNel[String, Unit] = {
+    val byNumber = objsByNumber(pdf)
     val refs = pdf.objs.foldLeft(Refs(Nil))(collectRefs)
-    validateContentStreams(objsByNumber(pdf), refs)
+    validateContentStreams(byNumber, refs)
+      .combine(validatePages(byNumber, pdf))
   }
 
   def fromDecoded(decoded: Stream[IO, Decoded]): IO[ValidatedNel[String, Unit]] =

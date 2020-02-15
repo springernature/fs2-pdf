@@ -3,7 +3,7 @@ package pdf
 
 import cats.data.NonEmptyList
 import cats.implicits._
-import scodec.{Attempt, Codec, DecodeResult, Decoder}
+import scodec.{Attempt, Codec, DecodeResult, Decoder, Err}
 import scodec.bits.BitVector
 import scodec.interop.cats.{AttemptMonadErrorInstance, DecoderMonadInstance}
 
@@ -69,7 +69,10 @@ object XrefStream
     for {
       (entryCount, tables) <- decodeXrefStream(data, stream)
       nonEmptyTables <- Codecs.attemptNel("no tables in xref stream")(tables)
-    } yield XrefStream(nonEmptyTables, Trailer(trailerSize(data).getOrElse(entryCount), cleanTrailer(data)))
+    } yield XrefStream(
+      nonEmptyTables,
+      Trailer(trailerSize(data).getOrElse(entryCount), cleanTrailer(data), data.ref("Root")),
+    )
 }
 
 object XrefStreamCodec

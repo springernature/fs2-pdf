@@ -5,7 +5,7 @@ import cats.data.NonEmptyList
 import cats.implicits._
 import scodec.{Attempt, Codec, Err}
 
-case class Trailer(size: BigDecimal, data: Prim.Dict)
+case class Trailer(size: BigDecimal, data: Prim.Dict, root: Option[Prim.Ref])
 
 object Trailer
 {
@@ -16,8 +16,16 @@ object Trailer
         trailers.map(_.data.data).reduceLeft((a, b) => a ++ b)
           .removed("Prev")
           .removed("DecodeParms")
-      )
+      ),
+      trailers.head.root,
     )
+
+  def fromData(data: Prim.Dict): Attempt[Trailer] =
+    Prim.Dict.path("Size")(data) {
+      case Prim.Number(size) =>
+        val root = Prim.Dict.path("Root")(data) { case ref @ Prim.Ref(_, _) => ref }.toOption
+        Trailer(size, data, root)
+    }
 }
 
 case class Xref(tables: NonEmptyList[Xref.Table], trailer: Trailer, startxref: Long)
@@ -133,15 +141,10 @@ trait XrefCodec
   def range: Codec[(Long, Int)] =
     (ascii.long.withContext("offset") <~ ws) ~ ascii.int.withContext("size") <~ newline
 
-  def validateTrailer(data: Prim.Dict): Attempt[Trailer] =
-    Prim.Dict.path("Size")(data) {
-      case Prim.Number(size) => Trailer(size, data)
-    }
-
   def trailerDict: Codec[Trailer] =
     Prim.Codec_Dict
       .withContext("trailer")
-      .exmap(validateTrailer, a => Attempt.successful(a.data))
+      .exmap(Trailer.fromData, a => Attempt.successful(a.data))
 
   def trailerKw: Codec[Unit] =
     str("trailer") <~ nlWs

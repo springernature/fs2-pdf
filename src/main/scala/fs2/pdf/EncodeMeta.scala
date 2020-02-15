@@ -27,13 +27,14 @@ object EncodeMeta
     )
 
   def mergeTrailerDicts(update: Prim.Dict): Trailer => Prim.Dict = {
-    case Trailer(_, Prim.Dict(data)) => Prim.Dict(data ++ update.data)
+    case Trailer(_, Prim.Dict(data), _) => Prim.Dict(data ++ update.data)
   }
 
   def trailer(previousTrailer: Trailer, previousSize: Long, offset: Option[Long], newEntries: Int): Trailer =
     Trailer(
       previousSize + newEntries,
       mergeTrailerDicts(trailerUpdate(previousSize, offset, newEntries))(previousTrailer),
+      previousTrailer.root,
     )
 
   def offsets(base: Long)(sizes: NonEmptyList[Long]): NonEmptyList[Long] =

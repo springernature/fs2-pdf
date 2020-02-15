@@ -21,7 +21,7 @@ object PdfObj
   extends PdfObj
 }
 
-case class Pdf(objs: NonEmptyList[PdfObj], xrefs: NonEmptyList[Xref])
+case class Pdf(objs: NonEmptyList[PdfObj], xrefs: NonEmptyList[Xref], trailer: Trailer)
 
 case class ValidatedPdf(pdf: Pdf, errors: ValidatedNel[String, Unit])
 
@@ -131,7 +131,7 @@ object Pdf
     def consPdf(objs: List[PdfObj], xrefs: List[Xref]): Validated[String, Pdf] =
       (NonEmptyList.fromList(objs.reverse), NonEmptyList.fromList(xrefs.reverse)) match {
         case (Some(o), Some(x)) =>
-          Validated.Valid(Pdf(o, x))
+          Validated.Valid(Pdf(o, x, Trailer.sanitize(x.map(_.trailer))))
         case (None, _) =>
           Validated.Invalid("no objects in pdf")
         case (_, None) =>

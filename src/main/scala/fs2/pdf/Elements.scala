@@ -11,7 +11,44 @@ case class MediaBox(x: BigDecimal, y: BigDecimal, w: BigDecimal, h: BigDecimal)
 
 case class Page(index: Obj.Index, data: Prim.Dict, mediaBox: MediaBox)
 
+object Page
+{
+  def fromData(index: Obj.Index): Prim => Attempt[Page] = {
+    case Prim.tpe("Page", data) =>
+      Prim.Dict.path("MediaBox")(data) {
+        case Prim.Array(List(Prim.Number(x), Prim.Number(y), Prim.Number(w), Prim.Number(h))) =>
+          Page(index, data, MediaBox(x, y, w, h))
+      }
+    case _ =>
+      Codecs.fail("not a Page object")
+  }
+
+  object obj
+  {
+    def unapply(obj: IndirectObj): Option[Page] =
+      fromData(obj.index)(obj.data).toOption
+  }
+}
+
 case class Pages(index: Obj.Index, data: Prim.Dict, kids: NonEmptyList[Prim.Ref], root: Boolean)
+
+object Pages
+{
+  def fromData(index: Obj.Index): Prim => Attempt[Pages] = {
+    case Prim.tpe("Pages", data) =>
+      Prim.Dict.path("Kids")(data) {
+        case Prim.refs(kids) => Pages(index, data, kids, !data.data.contains("Parent"))
+      }
+    case _ =>
+      Codecs.fail("not a Pages object")
+  }
+
+  object obj
+  {
+    def unapply(obj: IndirectObj): Option[Pages] =
+      fromData(obj.index)(obj.data).toOption
+  }
+}
 
 case class FontResource(index: Obj.Index, data: Prim.Dict)
 
@@ -87,14 +124,9 @@ object AnalyzeData
 {
   def kind(index: Obj.Index): Prim => Attempt[Element.DataKind] = {
     case Prim.tpe("Page", data) =>
-      Prim.Dict.path("MediaBox")(data) {
-        case Prim.Array(List(Prim.Number(x), Prim.Number(y), Prim.Number(w), Prim.Number(h))) =>
-          Element.DataKind.Page(Page(index, data, MediaBox(x, y, w, h)))
-      }
+      Page.fromData(index)(data).map(Element.DataKind.Page(_))
     case Prim.tpe("Pages", data) =>
-      Prim.Dict.path("Kids")(data) {
-        case Prim.refs(kids) => Element.DataKind.Pages(Pages(index, data, kids, !data.data.contains("Parent")))
-      }
+      Pages.fromData(index)(data).map(Element.DataKind.Pages(_))
     case Prim.fontResources(data) =>
       Attempt.successful(Element.DataKind.FontResource(FontResource(index, data)))
     case data @ Prim.Array(_) =>

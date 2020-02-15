@@ -56,6 +56,9 @@ extends PrimCodec
 
     def ++(other: Dict): Dict =
       Dict(data ++ other.data)
+
+    def ref(key: String): Option[Ref] =
+      apply(key).collect { case r @ Ref(_, _) => r }
   }
 
   object Dict
