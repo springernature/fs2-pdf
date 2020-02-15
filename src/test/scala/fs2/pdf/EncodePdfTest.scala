@@ -7,7 +7,7 @@ import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 import scodec.bits.ByteVector
 
-class PdfAnnotTest
+class EncodePdfTest
 extends Specification
 {
   import BasicResources.cs

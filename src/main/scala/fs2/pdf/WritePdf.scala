@@ -19,7 +19,7 @@ object GenerateXref
       }
       .sortBy(_._1)
 
-  def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] = {
+  def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] =
     entries
       .reduceLeftTo(a => NonEmptyList.one(a)) {
         case (z @ NonEmptyList((prevNumber, _), _), (number, entry)) =>
@@ -28,7 +28,6 @@ object GenerateXref
       }
       .reverse
       .map(_._2)
-  }
 
   def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
     entries

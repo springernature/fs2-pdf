@@ -19,7 +19,6 @@ extends Specification
     |%%EOF
     |3
     |4
-    |
     |""".stripMargin
 
   "remove comments" >>

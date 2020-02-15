@@ -93,6 +93,9 @@ object Codecs
   def stripNewlineBits(bits: BitVector): BitVector =
     stripNewline(bits.bytes).bits
 
+  def isNewlineByte(b: Byte): Boolean =
+    b == lfByte || b == crByte
+
   val whitespaceBytes: Decoder[ByteVector] =
     Decoder.choiceDecoder(
       constant(lfBytes).map(_ => lfBytes),
@@ -127,11 +130,33 @@ object Codecs
   val ws: Codec[Unit] =
     multiWhitespaceChar(' ')
 
-  val nlWs: Codec[Unit] =
-    multiWhitespaceChar(newlineChar)
-
   val skipWs: Codec[Unit] =
     multiWhitespace(provide(()))
+
+  val whitespaceAsNewline: Codec[Unit] =
+    multiWhitespaceChar(newlineChar)
+
+  val commentStartDecoder: Decoder[Unit] =
+    Decoder { bits =>
+      val bytes = bits.bytes
+      if (bytes.lift(0).contains('%') && !bytes.lift(1).contains('%'))
+        Attempt.successful(DecodeResult((), bytes.drop(1).bits))
+      else
+        Attempt.failure(Err("not a comment"))
+    }
+
+  val commentStart: Codec[Unit] =
+    Codec(provide(()), commentStartDecoder)
+
+  val comment: Codec[Unit] =
+    optional(recover(commentStart), line("comment"))
+      .xmap(_ => (), _ => None)
+
+  val whitespaceAndCommentAsNewline: Codec[Unit] =
+    skipWs ~> comment ~> whitespaceAsNewline
+
+  val nlWs: Codec[Unit] =
+    whitespaceAndCommentAsNewline
 
   def partialBytes[A]
   (desc: String)

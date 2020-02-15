@@ -88,15 +88,12 @@ case class StartXref(offset: Long)
 
 object StartXref
 {
-  import Codecs.{str, nlWs, ascii, withoutComments}
+  import Codecs.{str, nlWs, ascii}
 
-  def mainCodec: Codec[StartXref] =
+  implicit def Codec_StartXref: Codec[StartXref] =
     (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
       .withContext("startxref")
       .as[StartXref]
-
-  implicit def Codec_StartXref: Codec[StartXref] =
-    withoutComments(mainCodec)
 }
 
 trait XrefCodec
@@ -165,14 +162,11 @@ trait XrefCodec
         t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
-  def mainCodec: Codec[Xref] =
+  implicit def Codec_Xref: Codec[Xref] =
     productCodec(
       str("xref") ~> nlWs ~> manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
-      Codec_Trailer ~
+      (skipWs ~> Codec_Trailer) ~
       startxref <~
       str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
     )
-
-  implicit def Codec_Xref: Codec[Xref] =
-    withoutComments(mainCodec)
 }
