@@ -9,8 +9,9 @@ import scodec.Attempt
 import scodec.bits.ByteVector
 
 /**
-  * This provides a [[Pipe]] that turns a [[Stream]] of either [[Part]] or [[IndirectObj]] into a [[Stream]] of
-  * [[ByteVector]] by encoding all the objects, collecting their metadata and then generating a cross reference table.
+  * This provides [[Pipe]]s that turn a [[Stream]] of either [[Part]] or [[IndirectObj]] into a [[Stream]] of
+  * [[ByteVector]] by encoding all of the objects, collecting their metadata and then generating a cross reference
+  * table.
   *
   * @example {{{
   * pdfBytes
@@ -21,14 +22,14 @@ import scodec.bits.ByteVector
   */
 object WritePdf
 {
-  private[this]
+  private[pdf]
   case class EncodeLog(entries: List[XrefObjMeta], trailer: Option[Trailer])
   {
     def entry(newEntry: XrefObjMeta): EncodeLog =
       copy(entries = newEntry :: entries)
   }
 
-  private[this]
+  private[pdf]
   def encode(state: EncodeLog)
   : Part[Trailer] => Pull[IO, ByteVector, EncodeLog] = {
     case Part.Obj(obj) =>
@@ -44,11 +45,11 @@ object WritePdf
       StreamUtil.failPull("Part.Version not at the head of stream")
   }
 
-  private[this]
+  private[pdf]
   def outputVersion(version: Version): Pull[IO, ByteVector, Long] =
     StreamUtil.attemptPullWith("encode version")(Codecs.encodeBytes(version))(a => Pull.output1(a).as(a.size))
 
-  private[this]
+  private[pdf]
   def encodeXref(
     entries: NonEmptyList[XrefObjMeta],
     trailer: Trailer,
@@ -57,7 +58,7 @@ object WritePdf
   : Attempt[ByteVector] =
     Codecs.encodeBytes(GenerateXref(entries, trailer, initialOffset))
 
-  private[this]
+  private[pdf]
   def writeXref(
     entries: NonEmptyList[XrefObjMeta],
     trailer: Trailer,
@@ -67,7 +68,7 @@ object WritePdf
     StreamUtil.attemptPullWith("encoding xref")(attempt)(Pull.output1)
   }
 
-  private[this]
+  private[pdf]
   def pullParts
   (parts: Stream[IO, Part[Trailer]])
   (initialOffset: Long)
@@ -82,7 +83,7 @@ object WritePdf
           StreamUtil.failPull("no trailer in parts stream")
       }
 
-  private[this]
+  private[pdf]
   def consumeVersion(parts: Stream[IO, Part[Trailer]]): Pull[IO, ByteVector, (Long, Stream[IO, Part[Trailer]])] =
     parts
       .pull
