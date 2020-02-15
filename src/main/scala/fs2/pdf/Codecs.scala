@@ -418,11 +418,12 @@ object Codecs
     @annotation.tailrec
     def spin(input: ByteVector, output: ByteVector): ByteVector =
       input.indexOfSlice(percent) match {
-        case -1 => output ++ input
+        case -1 =>
+          output ++ input
         case i if input.lift(i + 1).contains('%') =>
           spin(input.drop(i + 2), output ++ input.take(i + 2))
         case i =>
-          spin(dropLine(input.drop(i + 1)), output ++ input.take(i) ++ newlineByteVector)
+          spin(dropLine(input.drop(i + 1)), output ++ input.take(i))
       }
     spin(bytes, ByteVector.empty)
   }
