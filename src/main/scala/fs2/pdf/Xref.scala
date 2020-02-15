@@ -88,12 +88,15 @@ case class StartXref(offset: Long)
 
 object StartXref
 {
-  import Codecs.{str, nlWs, ascii}
+  import Codecs.{str, nlWs, ascii, withoutComments}
 
-  implicit def Codec_StartXref: Codec[StartXref] =
+  def mainCodec: Codec[StartXref] =
     (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
       .withContext("startxref")
       .as[StartXref]
+
+  implicit def Codec_StartXref: Codec[StartXref] =
+    withoutComments(mainCodec)
 }
 
 trait XrefCodec
