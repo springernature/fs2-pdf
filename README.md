@@ -144,7 +144,7 @@ A stream of indirect objects can be encoded into a pdf document, with automatic 
 ```scala
 val reencoded: Stream[IO, Byte] =
   decoded
-    .through(Decode.indirectObjs)
+    .through(Parsed.indirectObjs)
     .through(WritePdf.objects(Trailer(Prim.Dict.empty)))
 ```
 

@@ -3,72 +3,32 @@ package pdf
 
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.implicits._
 import codec.Codecs
 import fs2.{Pipe, Pull, Stream}
 import scodec.Attempt
 import scodec.bits.ByteVector
 
-object GenerateXref
-{
-  def xrefEntries(indexes: NonEmptyList[Obj.Index], sizes: NonEmptyList[Long], initialOffset: Long)
-  : NonEmptyList[(Long, Xref.Entry)] =
-    indexes
-      .zipWith(EncodeMeta.offsets(initialOffset)(sizes)) {
-        case (index, offset) =>
-          (index.number, EncodeMeta.objectXrefEntry(index, offset))
-      }
-      .sortBy(_._1)
-
-  def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] =
-    entries
-      .reduceLeftTo(a => NonEmptyList.one(a)) {
-        case (z @ NonEmptyList((prevNumber, _), _), (number, entry)) =>
-          val padding = List.fill((number - prevNumber - 1).toInt)((0L, Xref.Entry.dummy))
-          NonEmptyList((number, entry), padding) ::: z
-      }
-      .reverse
-      .map(_._2)
-
-  def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
-    entries
-      .reduceLeftTo(NonEmptyList.one(_)) {
-        case (NonEmptyList((prevNumber, _), tail), (number, entry)) if prevNumber == number =>
-          NonEmptyList((number, entry), tail)
-        case (tail, h) =>
-          h :: tail
-      }
-      .reverse
-
-  def apply(
-    meta: NonEmptyList[XrefObjMeta],
-    trailerDict: Trailer,
-    initialOffset: Long,
-  ): Xref = {
-    val indexes = meta.map(_.index)
-    val sizes = meta.map(_.size)
-    val startxref = initialOffset + sizes.toList.sum
-    val entries = padEntries(deduplicateEntries(xrefEntries(indexes, sizes, initialOffset)))
-    val firstNumber = meta.minimumBy(_.index.number).index.number
-    val fromZero = firstNumber == 1L
-    val zeroIncrement = if (fromZero) 1 else 0
-    val trailer = EncodeMeta.trailer(trailerDict, 0, None, entries.size + zeroIncrement)
-    val withFree =
-      if (fromZero) Xref.Entry.freeHead :: entries
-      else entries
-    val tableOffset = if (fromZero) 0L else firstNumber
-    Xref(NonEmptyList.one(Xref.Table(tableOffset, withFree)), trailer, startxref)
-  }
-}
-
+/**
+  * This provides a [[Pipe]] that turns a [[Stream]] of either [[Part]] or [[IndirectObj]] into a [[Stream]] of
+  * [[ByteVector]] by encoding all the objects, collecting their metadata and then generating a cross reference table.
+  *
+  * @example {{{
+  * pdfBytes
+  *   .through(PdfStream.decode(Log.noop))
+  *   .through(Parsed.indirectObjs)
+  *   .through(WritePdf.objects(Trailer(Prim.Dict.empty)))
+  * }}}
+  */
 object WritePdf
 {
+  private[this]
   case class EncodeLog(entries: List[XrefObjMeta], trailer: Option[Trailer])
   {
     def entry(newEntry: XrefObjMeta): EncodeLog =
       copy(entries = newEntry :: entries)
   }
 
+  private[this]
   def encode(state: EncodeLog)
   : Part[Trailer] => Pull[IO, ByteVector, EncodeLog] = {
     case Part.Obj(obj) =>
@@ -84,9 +44,11 @@ object WritePdf
       StreamUtil.failPull("Part.Version not at the head of stream")
   }
 
+  private[this]
   def outputVersion(version: Version): Pull[IO, ByteVector, Long] =
     StreamUtil.attemptPullWith("encode version")(Codecs.encodeBytes(version))(a => Pull.output1(a).as(a.size))
 
+  private[this]
   def encodeXref(
     entries: NonEmptyList[XrefObjMeta],
     trailer: Trailer,
@@ -95,6 +57,7 @@ object WritePdf
   : Attempt[ByteVector] =
     Codecs.encodeBytes(GenerateXref(entries, trailer, initialOffset))
 
+  private[this]
   def writeXref(
     entries: NonEmptyList[XrefObjMeta],
     trailer: Trailer,
@@ -104,6 +67,7 @@ object WritePdf
     StreamUtil.attemptPullWith("encoding xref")(attempt)(Pull.output1)
   }
 
+  private[this]
   def pullParts
   (parts: Stream[IO, Part[Trailer]])
   (initialOffset: Long)
@@ -118,6 +82,7 @@ object WritePdf
           StreamUtil.failPull("no trailer in parts stream")
       }
 
+  private[this]
   def consumeVersion(parts: Stream[IO, Part[Trailer]]): Pull[IO, ByteVector, (Long, Stream[IO, Part[Trailer]])] =
     parts
       .pull
@@ -131,12 +96,28 @@ object WritePdf
           StreamUtil.failPull("no elements in parts stream")
       }
 
+  /**
+    * The main pipe for encoding a PDF from its [[Part]]s.
+    *
+    * This requires that a [[Part.Version]] variant is at the head of the stream or doesn't occur at all, in which case
+    * a default version will be used.
+    * Also required is that at least one [[Part.Meta]] variant occurs in the stream, containing the necessary metadata.
+    * At least one [[Part.Obj]] must be in the stream.
+    *
+    * @return a [[Pipe]] tranforming [[Part]] to [[ByteVector]] by encoding the objects and generating an xref.
+    */
   def parts: Pipe[IO, Part[Trailer], ByteVector] =
     consumeVersion(_)
       .flatMap { case (offset, tail) => pullParts(tail)(offset) }
       .void
       .stream
 
+  /**
+    * Convenience method for raw [[IndirectObj]] streams.
+    *
+    * @param trailer additional data for the trailer, will be amended by the xref generator.
+    * @return a [[Pipe]] tranforming [[IndirectObj]] to [[ByteVector]] by encoding the objects and generating an xref.
+    */
   def objects(trailer: Trailer): Pipe[IO, IndirectObj, ByteVector] =
     in => (in.map(Part.Obj(_)) ++ Stream(Part.Meta(trailer))).through(parts)
 
