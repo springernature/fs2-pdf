@@ -414,7 +414,10 @@ object Codecs
         case i if input.lift(i + 1).contains('%') =>
           spin(input.drop(i + 2), output ++ input.take(i + 2))
         case i =>
-          spin(dropLine(input.drop(i + 1)), output ++ input.take(i))
+          val extraNewline =
+            if (input.lift(i - 1).map(isNewlineByte).getOrElse(true)) ByteVector.empty
+            else newlineByteVector
+          spin(dropLine(input.drop(i + 1)), output ++ input.take(i) ++ extraNewline)
       }
     spin(bytes, ByteVector.empty)
   }
