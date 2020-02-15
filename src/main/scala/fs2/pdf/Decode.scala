@@ -97,4 +97,17 @@ object Decode
     TopLevel.pipe
       .andThen(FilterDuplicates.pipe(log))
       .andThen(decodeTopLevelPipe)
+
+
+  def indirectObjs: Pipe[IO, Decoded, IndirectObj] =
+    _.flatMap {
+      case Decoded.DataObj(obj) =>
+        Stream(IndirectObj(obj.index, obj.data, None))
+      case Decoded.ContentObj(obj, _, stream) =>
+        StreamUtil.attemptStream("Decode.indirectObjs")(stream.exec)
+          .map(Some(_))
+          .map(IndirectObj(obj.index, obj.data, _))
+      case Decoded.Meta(_, _, _) =>
+        fs2.Stream.empty
+    }
 }

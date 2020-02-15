@@ -9,7 +9,7 @@ class ImageTest
 extends Specification
 {
   def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
-    StreamParser.elements(log)
+    PdfStream.elements(log)
       .andThen(Rewrite.simple(())(ElementsTest.collect)(ElementsTest.update))
 
   "parse pdf" >>

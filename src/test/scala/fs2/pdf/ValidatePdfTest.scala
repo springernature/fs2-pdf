@@ -23,5 +23,5 @@ extends Specification
   import ValidatedMatcher.beValid
 
   // "validate" >>
-  // ProcessJarPdf.processWithIO("books/broken-comm")(StreamParser.validate).value.map(a => a.must(beRight(beValid))).unsafeRunSync
+  // ProcessJarPdf.processWithIO("books/broken-comm")(PdfStream.validate).value.map(a => a.must(beRight(beValid))).unsafeRunSync
 }

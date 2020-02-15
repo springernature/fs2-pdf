@@ -29,7 +29,7 @@ object Pdf
 {
   def objectNumbersRaw(numbers: List[Long]): Pipe[IO, Byte, (Obj, Option[BitVector])] =
     _
-      .through(StreamParser.topLevel)
+      .through(PdfStream.topLevel)
       .collect {
         case TopLevel.IndirectObj(IndirectObj(index @ Obj.Index(n, _), data, s)) if numbers.contains(n) =>
           (Obj(index, data), s)
@@ -37,7 +37,7 @@ object Pdf
 
   def objectNumbers(numbers: List[Long]): Pipe[IO, Byte, (Obj, Option[BitVector])] =
     _
-      .through(StreamParser.decode(Log.noop))
+      .through(PdfStream.decode(Log.noop))
       .collect {
         case Decoded.ContentObj(obj @ Obj(Obj.Index(n, _), _), _, stream) if numbers.contains(n) =>
           StreamUtil.attemptStream(s"stream of object $n")(stream.exec)
@@ -49,7 +49,7 @@ object Pdf
 
   def pageNumber(page: Int): Pipe[IO, Byte, Long] =
     _
-      .through(StreamParser.elements(Log.noop))
+      .through(PdfStream.elements(Log.noop))
       .collect {
         case Element.Data(_, Element.DataKind.Pages(Pages(_, _, kids, _))) =>
           kids.toList.lift(page).map(_.number)

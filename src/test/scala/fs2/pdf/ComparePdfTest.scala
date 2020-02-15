@@ -20,7 +20,7 @@ extends Specification
 //   "validate" >>
 //   ProcessJarPdf.processWithIO("books/broken-biomech") { _ => updated =>
 //     ProcessJarPdf.processWithIO("books/biomech") { log => old =>
-//       StreamParser.compare(log)(old, updated)
+//       PdfStream.compare(log)(old, updated)
 //     }.value
 //   }
 //     .value

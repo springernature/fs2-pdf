@@ -6,7 +6,7 @@ import cats.effect.IO
 import fs2.{Pipe, Stream}
 import scodec.bits.BitVector
 
-object StreamParser
+object PdfStream
 {
   /**
     * Rechunking is crucial for performance, since constructors like [[fs2.io.file.readAll]] use chunk sizes of a few
