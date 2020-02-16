@@ -109,7 +109,7 @@ object Pdf
         copy(errors = e :: errors)
     }
 
-    def processParsed(state: AssemblyState): Decoded => AssemblyState = {
+    def processDecoded(state: AssemblyState): Decoded => AssemblyState = {
       case Decoded.ContentObj(obj, _, stream) =>
         stream.exec match {
           case Attempt.Successful(s) =>
@@ -125,8 +125,8 @@ object Pdf
         state
     }
 
-    def processParsedPull(state: AssemblyState)(parsed: Decoded): Pull[IO, Nothing, AssemblyState] =
-      Pull.pure(processParsed(state)(parsed))
+    def processDecodedPull(state: AssemblyState)(parsed: Decoded): Pull[IO, Nothing, AssemblyState] =
+      Pull.pure(processDecoded(state)(parsed))
 
     def consPdf(objs: List[PdfObj], xrefs: List[Xref]): Validated[String, Pdf] =
       (NonEmptyList.fromList(objs.reverse), NonEmptyList.fromList(xrefs.reverse)) match {
@@ -143,7 +143,7 @@ object Pdf
         .fold(Validated.validNel[String, Unit](()))(Validated.invalid(_))
 
     def pull(parsed: Stream[IO, Decoded]): Pull[IO, ValidatedNel[String, ValidatedPdf], Unit] =
-      StreamUtil.pullState(processParsedPull)(parsed)(AssemblyState(Nil, Nil, Nil))
+      StreamUtil.pullState(processDecodedPull)(parsed)(AssemblyState(Nil, Nil, Nil))
         .flatMap {
           case AssemblyState(objs, xrefs, errors) =>
             Pull.output1(consPdf(objs, xrefs).toValidatedNel.map(ValidatedPdf(_, validateErrors(errors))))

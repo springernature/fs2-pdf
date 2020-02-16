@@ -6,7 +6,6 @@ import java.nio.file.{FileSystems, Files, Path}
 import cats.data.EitherT
 import cats.effect.IO
 import cats.implicits._
-import fs2.Stream
 
 case class JarError(error: String)
 

@@ -43,7 +43,7 @@ object PdfStream
     */
   def decode(log: Log): Pipe[IO, Byte, Decoded] =
     bits
-      .andThen(Decode.decoded(log))
+      .andThen(Decode(log))
 
   /**
     * Decode high-level PDF components like page objects, page tree objects, indirect arrays, resource dictionaries with

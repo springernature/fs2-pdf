@@ -2,7 +2,6 @@ package fs2
 package pdf
 
 import cats.effect.IO
-import fs2.Stream
 import org.specs2.mutable.Specification
 import scodec.bits.{BitVector, HexStringSyntax}
 import scodec.interop.cats.BitVectorMonoidInstance

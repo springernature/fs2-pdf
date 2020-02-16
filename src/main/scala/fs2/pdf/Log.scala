@@ -4,7 +4,6 @@ package pdf
 import cats.data.EitherT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
-import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.noop.NoOpLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger

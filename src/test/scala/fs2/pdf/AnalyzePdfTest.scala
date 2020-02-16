@@ -4,7 +4,6 @@ package pdf
 import cats.data.EitherT
 import cats.effect.IO
 import cats.implicits._
-import fs2.Stream
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 
