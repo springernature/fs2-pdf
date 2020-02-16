@@ -3,12 +3,7 @@ val org = "springernature"
 val projectName = "fs2-pdf"
 val repoPath = s"$org/$projectName"
 val repo = s"$github/$repoPath"
-val http4sVersion = "0.21.0-RC3"
-val circeVersion = "0.12.3"
 val specs2Version = "4.6.0"
-val logbackVersion = "1.2.3"
-val doobieVersion = "0.8.6"
-val tapirVersion = "0.12.12"
 val log4catsVersion = "1.0.0"
 
 name := "fs2-pdf"
@@ -41,24 +36,30 @@ ThisBuild / fork := true
 ThisBuild / licenses := List("Apache 2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 ThisBuild / homepage := Some(url(repo))
 ThisBuild / scmInfo := Some(ScmInfo(url(repo), s"scm:git@github.com:$repoPath"))
-ThisBuild / developers := List(Developer(
-  id = "springfield",
-  name = "Springfield",
-  email = "spring-field@springernature.com",
-  url = url(s"$github/$org"),
-))
+ThisBuild / developers := List(
+  Developer(
+    id = "tek",
+    name = "Torsten Schmits",
+    email = "torstenschmits@gmail.com",
+    url = url(s"$github/tek"),
+  ),
+  Developer(
+    id = "springfield",
+    name = "Springfield",
+    email = "spring-field@springernature.com",
+    url = url(s"$github/$org"),
+  )
+)
 ThisBuild / update / evictionWarningOptions := EvictionWarningOptions.default.withWarnTransitiveEvictions(false)
 
 import ReleaseTransformations._
-
 releaseProcess := Seq[ReleaseStep](
-  inquireVersions,
+  // inquireVersions,
   runClean,
-  setReleaseVersion,
-  releaseStepCommand("publish"),
-  // releaseStepCommandAndRemaining("publish"),
-  // releaseStepCommand("sonatypeReleaseAll"),
+  // setReleaseVersion,
+  releaseStepCommandAndRemaining("publish"),
+  releaseStepCommand("sonatypeReleaseAll"),
   tagRelease,
-  setNextVersion,
-  commitNextVersion,
+  // setNextVersion,
+  // commitNextVersion,
 )

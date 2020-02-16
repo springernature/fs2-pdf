@@ -18,5 +18,6 @@ tasks:
     artifactory_password: ((sprcom-artifactory.authtoken))
     github_ssh_key: ((sprcom-artifactory.sshkey))
     sf_ci_gpg_main: ((sf-ci-gpg-main.key))
+    sf_ci_sonatype_password: ((sf-ci-sonatype.password))
 feature_toggles:
 - update-pipeline
