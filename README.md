@@ -287,3 +287,8 @@ ops/sbt test
 
 [fs2]: https://fs2.io
 [scodec]: https://scodec.org
+# License
+
+Copyright 2020 SpringerNature
+
+**fs2-pdf** is licensed under the Apache License 2.0
