@@ -51,6 +51,8 @@ ThisBuild / developers := List(
   )
 )
 ThisBuild / update / evictionWarningOptions := EvictionWarningOptions.default.withWarnTransitiveEvictions(false)
+ThisBuild / autoAPIMappings := true
+Compile / doc / scalacOptions ++= List("-groups", "-implicits")
 
 import ReleaseTransformations._
 releaseProcess := Seq[ReleaseStep](
