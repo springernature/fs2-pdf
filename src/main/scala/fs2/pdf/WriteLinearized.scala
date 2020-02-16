@@ -179,4 +179,15 @@ object WriteLinearized
           pullFirstPage(trailer, firstPageCount, totalCount, offset, fileSize)(tail)
       }
       .stream
+
+  def write(pdf: LinearizedPdf): Stream[IO, ByteVector] =
+    ???
+
+  def fresh: Pipe[IO, IndirectObj, ByteVector] =
+    in =>
+      Stream.eval(in.compile.to(List).map(LinearizedPdf.apply))
+        .flatMap {
+          case Left(error) => StreamUtil.failStream(error)
+          case Right(pdf) => write(pdf)
+        }
 }

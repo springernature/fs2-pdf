@@ -26,13 +26,12 @@ extends Specification
   def content: IndirectObj =
     IndirectObj.stream(5, Prim.dict(), BitVector.empty)
 
-  val parts: Stream[IO, Part[Trailer]] =
+  val objects: Stream[IO, IndirectObj] =
     Stream(
-      Part.Version(Version.default),
-      Part.Obj(IndirectObj.nostream(3, pages)),
-      Part.Obj(page(4, 3)),
-      Part.Obj(content),
-      Part.Obj(page(1, 5)),
+      IndirectObj.nostream(3, pages),
+      page(4, 3),
+      content,
+      page(1, 5),
     )
 
   val linearization: Prim.Dict =
@@ -51,9 +50,9 @@ extends Specification
       "Root" -> Prim.refNum(1),
     )
 
-  // "parse pdf" >>
-  // Test.unitStream {
-  //   WriteLinearized.pipe(trailer, 3, 5, 611L)(parts)
-  //     .through(Write.bytes("test-out.pdf"))
-  // }
+  "parse pdf" >>
+  Test.unitStream {
+    WriteLinearized.fresh(objects)
+      .through(Write.bytes("test-out.pdf"))
+  }
 }
