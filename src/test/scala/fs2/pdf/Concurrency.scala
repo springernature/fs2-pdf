@@ -6,7 +6,6 @@ import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.ExecutionContext
 
 import cats.effect.{Blocker, ContextShift, IO, Resource}
-import fs2.Stream
 
 object Concurrency
 {

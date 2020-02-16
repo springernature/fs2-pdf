@@ -83,7 +83,7 @@ object Decode
     *
     * @return [[Pipe]] that turns [[TopLevel]]s into [[Decoded]]
     */
-  def decodeTopLevel: Pipe[IO, TopLevel, Decoded] =
+  def fromTopLevel: Pipe[IO, TopLevel, Decoded] =
     decodeTopLevelPull(_).stream
 
   /**
@@ -93,8 +93,8 @@ object Decode
     * @param log
     * @return [[Pipe]] that turns [[BitVector]]s into [[Decoded]]
     */
-  def decoded(log: Log): Pipe[IO, BitVector, Decoded] =
+  def apply(log: Log): Pipe[IO, BitVector, Decoded] =
     TopLevel.pipe
       .andThen(FilterDuplicates.pipe(log))
-      .andThen(decodeTopLevel)
+      .andThen(fromTopLevel)
 }

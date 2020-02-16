@@ -4,7 +4,6 @@ package pdf
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.IO
 import cats.implicits._
-import fs2.Stream
 import scodec.Attempt
 
 case class ContentRef(owner: Long, target: Long)

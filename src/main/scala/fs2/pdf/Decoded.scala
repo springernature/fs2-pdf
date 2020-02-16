@@ -41,7 +41,7 @@ object Decoded
           .map(Some(_))
           .map(IndirectObj(obj, _))
       case Decoded.Meta(_, _, _) =>
-        fs2.Stream.empty
+        Stream.empty
     }
 
   /**
