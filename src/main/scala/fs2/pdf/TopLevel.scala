@@ -2,12 +2,10 @@ package fs2
 package pdf
 
 import cats.effect.IO
-import cats.implicits._
 import fs2.Pipe
 import scodec.{Codec, Decoder, Err}
 import scodec.bits.BitVector
 import scodec.stream.StreamDecoder
-import shapeless.{:+:, CNil}
 
 /**
   * Represents the different chunks of data that can appear at the top level of a PDF document.
@@ -71,13 +69,11 @@ object TopLevel
 
   /**
     * Decode a top level PDF element like indirect objects, version tags, comments and cross reference tables.
-    * The coproduct type must be specified explicitly because the macro will order the types alphabetically, making
-    * Comment supersede Version.
     *
     * @return [[Decoder]] for [[TopLevel]]
     */
   def Decoder_TopLevel: Decoder[TopLevel] =
-    Codec.coproduct[IndirectObj :+: Version :+: Xref :+: StartXref :+: CNil].choice.as[TopLevel]
+    Codec.coproduct[TopLevel].choice
 
   /**
     * Decode a top level PDF element like indirect objects, version tags, comments and cross reference tables.

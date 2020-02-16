@@ -7,6 +7,15 @@ import fs2.{Pipe, Stream}
 import scodec.Attempt
 import scodec.bits.BitVector
 
+/**
+  * Abstract representation of basic components of a PDF file.
+  *
+  * Objects come in two syntactic variants: either as top level indirect objects, or contained in an indirect object's
+  * stream. This type unifies the two concepts, but splits them in those with streams ([[ContentObj]]) and those without
+  * ([[DataObj]]).
+  * The [[Meta]] variant carries all non-object information.
+  * [[ContentObj]]s additionally provide lazily evaluated uncompressed versions of the object's stream.
+  */
 sealed trait Decoded
 
 object Decoded
