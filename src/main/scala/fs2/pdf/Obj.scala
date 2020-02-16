@@ -1,16 +1,15 @@
 package fs2
 package pdf
 
-import codec.{Codecs, Text, Whitespace}
+import codec.{Text, Whitespace}
 import scodec.Codec
 import scodec.codecs.liftF2ToNestedTupleF
 
 case class Obj(index: Obj.Index, data: Prim)
 
 object Obj
+extends ObjCodec
 {
-  import Whitespace.{nlWs, skipWs, ws}
-  import Codecs.{productCodec}
   import Text.{ascii, str}
 
   case class Index(number: Long, generation: Int)
@@ -43,16 +42,19 @@ object Obj
     def unapply(obj: Obj): Option[(String, Prim.Dict)] =
       Prim.subtype.unapply(obj.data)
   }
+}
 
-  implicit def Codec_Obj: Codec[Obj] =
-    productCodec(
-      (skipWs ~> Index.Codec_Index <~ nlWs) ~
-      Prim.Codec_Prim <~ (nlWs <~ str("endobj") <~ nlWs)
-    )
+private[pdf]
+trait ObjCodec
+{
+  import Whitespace.{nlWs, skipWs, ws}
+  import Text.str
 
-  def codecPreStream: Codec[Obj] =
-    productCodec(
-      (skipWs ~> Index.Codec_Index <~ ws) ~
-      Prim.Codec_Prim <~ ws
-    )
+  val codecPreStream: Codec[Obj] =
+    ((skipWs ~> Codec[Obj.Index] <~ ws) :: Prim.Codec_Prim <~ ws)
+      .as[Obj]
+
+  implicit val Codec_Obj: Codec[Obj] =
+    (codecPreStream <~ nlWs <~ str("endobj") <~ nlWs)
+      .as[Obj]
 }

@@ -2,9 +2,10 @@ package fs2
 package pdf
 
 import cats.implicits._
-import codec.{Codecs, Newline, Whitespace, Text}
-import scodec.{Attempt, Codec, DecodeResult, Decoder}
-import scodec.bits.{BitVector, ByteVector}
+import codec.{Codecs, Newline, Text, Whitespace}
+import scodec._
+import scodec.bits._
+import shapeless.{::, HNil}
 
 case class IndirectObj(index: Obj.Index, data: Prim, stream: Option[BitVector])
 
@@ -32,8 +33,7 @@ trait IndirectObjCodec
   import scodec.codecs._
   import Newline.{stripNewline, lf, crlf}
   import Whitespace.{nlWs, skipWs, ws}
-  import Codecs.{productCodec}
-  import Text.{str}
+  import Text.str
 
   /**
     * Decodes the leading `stream` keyword for a content stream.
@@ -81,19 +81,26 @@ trait IndirectObjCodec
       streamPayload(data) <~ nlWs <~ str("endstream") <~ nlWs
     )
 
-  def objHeader: Codec[Obj.Index] =
+  val objHeader: Codec[Obj.Index] =
     skipWs ~> Obj.Index.Codec_Index <~ nlWs
 
-  def prim: Codec[Prim] =
+  val prim: Codec[Prim] =
     Prim.Codec_Prim <~ nlWs
 
-  def endobj: Codec[Unit] =
+  val endobj: Codec[Unit] =
     str("endobj") <~ nlWs
 
+  val preStream: Codec[Obj.Index :: Prim :: HNil] =
+    objHeader :: prim
+
+  val stream: Obj.Index :: Prim :: HNil => Codec[Option[BitVector]] = {
+    case (_ :: data :: HNil) =>
+      streamCodec(data)
+  }
+
   implicit def Codec_IndirectObj: Codec[IndirectObj] =
-    productCodec(
-      (objHeader ~ prim).flatZip { case (_, data) => streamCodec(data) } <~ endobj
-    )
+    (preStream.flatAppend(stream) <~ endobj)
+      .as[IndirectObj]
 }
 
 case class EncodedObj(xref: XrefObjMeta, bytes: ByteVector)

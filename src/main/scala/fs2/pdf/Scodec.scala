@@ -5,6 +5,7 @@ import cats.Foldable
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
 import scodec.{Attempt, Err}
+import scodec.bits.{BitVector, ByteVector}
 
 object Scodec
 {
@@ -21,4 +22,10 @@ object Scodec
     case Attempt.Successful(a) => Validated.Valid(a)
     case Attempt.Failure(cause) => Validated.invalidNel(cause.messageWithContext)
   }
+
+  def stringBytes(s: String): ByteVector =
+    ByteVector(s.getBytes)
+
+  def stringBits(s: String): BitVector =
+    BitVector(s.getBytes)
 }

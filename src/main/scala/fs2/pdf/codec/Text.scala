@@ -13,10 +13,10 @@ import scodec.codecs._
 
 object Text
 {
-  def latin: Codec[String] =
+  val latin: Codec[String] =
     string(StandardCharsets.ISO_8859_1)
 
-  def digitRange: (Int, Int) =
+  val digitRange: (Int, Int) =
     ('0', '9')
 
   def byteInRange(byte: Byte): (Int, Int) => Boolean =
@@ -38,6 +38,7 @@ object Text
   def range(low: Int, high: Int): Codec[ByteVector] =
     ranges((low, high))
 
+  private[this]
   def digitsDecoder: Decoder[String] =
     range('0', '9').map(a => new String(a.toArray))
 
@@ -59,9 +60,6 @@ object Text
       digits1.exmap(a => Attempt.fromTry(Try(a.toInt)), a => Attempt.successful(a.toString))
   }
 
-  def textLenient: Codec[String] =
-    withDefault(Codecs.opt(utf8), latin)
-
   def sanitizeNewlines(in: String): String =
     in
       .replaceAll("[\r\n]+", "<<NL>>")
@@ -76,8 +74,16 @@ object Text
   def sanitize(data: ByteVector): String =
     sanitizedLatin.decode(data.bits).map(_.value).getOrElse("unparsable")
 
+  private[this]
+  val lineDecoder: Decoder[ByteVector] =
+    Decoder { bits =>
+      val result = bits.bytes.takeWhile(a => !Newline.isNewlineByte(a))
+      Attempt.successful(DecodeResult(result, bits.bytes.drop(result.size).bits))
+    }
+
   def line(desc: String): Codec[ByteVector] =
-    Codecs.decodeUntilAny(desc)(bytes)(Newline.newlines)
+    (Codec(bytes, lineDecoder) <~ Newline.newline)
+      .withContext(desc)
 
   def char(data: Char): Codec[Unit] =
     Codecs.byte(data.toByte)
@@ -85,14 +91,15 @@ object Text
   def str(data: String): Codec[Unit] =
     constant(ByteVector(data.getBytes)).withContext(s"constant string `$data`")
 
-  def takeCharsUntilAny(chars: List[Char])(bits: BitVector): Attempt[DecodeResult[String]] = {
+  private[this]
+  def takeCharsUntilAny(decoder: Codec[String])(chars: List[Char])(bits: BitVector): Attempt[DecodeResult[String]] = {
     val result = bits.bytes.takeWhile(a => !chars.contains(a)).bits
-    latin.decode(result)
+    decoder.decode(result)
       .map { case DecodeResult(s, _) => DecodeResult(s, bits.drop(result.size)) }
   }
 
-  def charsNoneOf(chars: List[Char]): Codec[String] =
-    Codec(utf8, Decoder(takeCharsUntilAny(chars) _))
+  def charsNoneOf(decoder: Codec[String])(chars: List[Char]): Codec[String] =
+    Codec(utf8, Decoder(takeCharsUntilAny(decoder)(chars) _))
 
   def stringOf(count: Int): Codec[String] =
     bytes(count)

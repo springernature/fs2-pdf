@@ -3,7 +3,7 @@ package pdf
 
 import cats.effect.IO
 import cats.implicits._
-import fs2.{Pipe}
+import fs2.Pipe
 import scodec.{Codec, Decoder, Err}
 import scodec.bits.BitVector
 import scodec.stream.StreamDecoder

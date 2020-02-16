@@ -5,7 +5,7 @@ import scala.util.Try
 
 import cats.data.NonEmptyList
 import cats.implicits._
-import codec.{Codecs, Text, Whitespace}
+import codec.{Codecs, Many, Text, Whitespace}
 import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder, Err}
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs.liftF2ToNestedTupleF
@@ -295,7 +295,7 @@ trait PrimCodec
   import scodec.codecs.{optional, recover, lazily, bytes}
   import Prim.{str => _, _}
   import Whitespace.{space, ws, skipWs, nlWs}
-  import Codecs.{opt, bracketChar, bracketMany}
+  import Codecs.{opt, bracketChar}
   import Text.{str, ascii, char, ranges, charsNoneOf}
 
   def Codec_Null: Codec[Null.type] =
@@ -384,14 +384,14 @@ trait PrimCodec
     skipWs ~> inner <~ skipWs
 
   def Codec_Array: Codec[Array] =
-    (skipWs ~> bracketMany(trim(char('[')), trim(char(']')))(lazily(trim(Codec_Prim)) <~ ws))
+    (skipWs ~> Many.bracket(trim(char('[')), trim(char(']')))(lazily(trim(Codec_Prim)) <~ ws))
       .as[Array]
       .withContext("array")
 
   def nameString: Codec[String] =
     trim(
       char('/').withContext("name solidus") ~>
-      charsNoneOf("/<>[]( \r\n".toList).withContext("name chars")
+      charsNoneOf(Text.latin)("/<>[]( \r\n".toList).withContext("name chars")
     )
       .withContext("name string")
 
@@ -408,7 +408,7 @@ trait PrimCodec
       .withContext("dict>>")
 
   def Codec_Dict: Codec[Dict] =
-    bracketMany(dictStartMarker, dictEndMarker)(dictElem)
+    Many.bracket(dictStartMarker, dictEndMarker)(dictElem)
       .xmap[Map[String, Prim]](Map.from, _.toList)
       .as[Dict]
       .withContext("dict")

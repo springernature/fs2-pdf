@@ -10,7 +10,7 @@ extends Specification
 {
   def pipe(log: Log): Pipe[IO, Byte, ByteVector] =
     PdfStream.elements(log)
-      .andThen(Rewrite.simple(())(ElementsTest.collect)(ElementsTest.update))
+      .andThen(Rewrite.simple(())(RewriteTest.collect)(RewriteTest.update))
 
   "parse pdf" >>
   ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("test-image")(pipe))

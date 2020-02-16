@@ -1,7 +1,7 @@
 package fs2
 package pdf
 
-import codec.{Codecs, Text}
+import codec.{Many, Text}
 import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.ByteVector
 import scodec.codecs.{optional, provide, recover}
@@ -32,5 +32,5 @@ object Comment
     optional(recover(start), line)
 
   val many: Codec[List[ByteVector]] =
-    Codecs.many(start, line)
+    Many(start, line)
 }

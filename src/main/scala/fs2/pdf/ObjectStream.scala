@@ -1,7 +1,7 @@
 package fs2
 package pdf
 
-import codec.{Codecs, Text, Whitespace}
+import codec.{Many, Text, Whitespace}
 import scodec.Codec
 
 case class ObjectStream(objs: List[Obj])
@@ -31,7 +31,7 @@ private[pdf] trait ObjectStreamCodec
     Text.ascii.long <~ Whitespace.ws <~ Text.ascii.long.unit(0) <~ Whitespace.ws
 
   implicit def Codec_ObjectStream: Codec[ObjectStream] =
-    Codecs.manyTill(a => !a.bytes.headOption.exists(Text.isDigit))(number)
+    Many.till(a => !a.bytes.headOption.exists(Text.isDigit))(number)
       .flatZip(numbers => listOfN(provide(numbers.size), Prim.Codec_Prim))
       .xmap(decode, encode _)
 }

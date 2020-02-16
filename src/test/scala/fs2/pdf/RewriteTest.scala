@@ -4,7 +4,7 @@ package pdf
 import cats.effect.IO
 import org.specs2.mutable.Specification
 
-object ElementsTest
+object RewriteTest
 {
   def collect: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
@@ -23,12 +23,12 @@ object ElementsTest
 
 }
 
-class ElementsTest
+class RewriteTest
 extends Specification
 {
   def pipe(log: Log): Pipe[IO, Byte, Unit] =
     PdfStream.elements(log)
-      .andThen(Rewrite.simple(())(ElementsTest.collect)(ElementsTest.update))
+      .andThen(Rewrite.simple(())(RewriteTest.collect)(RewriteTest.update))
       .andThen(Write.bytes("test-out.pdf"))
 
   "parse pdf" >>

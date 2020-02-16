@@ -3,7 +3,7 @@ package pdf
 
 import cats.data.NonEmptyList
 import cats.implicits._
-import codec.{Codecs, Newline, Text, Whitespace}
+import codec.{Many, Newline, Text, Whitespace}
 import scodec.{Attempt, Codec, Err}
 
 case class Trailer(size: BigDecimal, data: Prim.Dict, root: Option[Prim.Ref])
@@ -111,7 +111,6 @@ trait XrefCodec
   import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
   import Newline.{lf, crlf, newline}
   import Whitespace.{nlWs, ws, space, skipWs}
-  import Codecs.{productCodec, manyTill1Codec}
   import Text.{stringOf, ascii, str}
 
   def offset: Codec[String] =
@@ -121,11 +120,13 @@ trait XrefCodec
     stringOf(5).withContext("generation") <~ space.withContext("generation space")
 
   implicit def regularIndex: Codec[Xref.Index.Regular] =
-    (productCodec(offset ~ generation): Codec[Xref.Index.Regular])
+    (offset :: generation)
+      .as[Xref.Index.Regular]
       .withContext("regular index")
 
   implicit def compressedIndex: Codec[Xref.Index.Compressed] =
-    (productCodec(ascii.long ~ ascii.int): Codec[Xref.Index.Compressed])
+    (ascii.long :: ascii.int)
+      .as[Xref.Index.Compressed]
       .withContext("compressed index")
 
   def index: Codec[Xref.Index] =
@@ -141,7 +142,7 @@ trait XrefCodec
     )
 
   def entry: Codec[Xref.Entry] =
-    productCodec(index ~ entryType <~ twoByteNewline)
+    (index :: entryType <~ twoByteNewline).as[Xref.Entry]
 
   def range: Codec[(Long, Int)] =
     (ascii.long.withContext("offset") <~ ws) ~ ascii.int.withContext("size") <~ newline
@@ -170,11 +171,18 @@ trait XrefCodec
         t => Attempt.successful(((t.offset, t.entries.size), t.entries.toList)),
       )
 
+  def tables: Codec[NonEmptyList[Xref.Table]] =
+    Many.tillDecodes1(trailerKw)(table).withContext("xref tables")
+
+  def eof: Codec[Unit] =
+    str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
+
   implicit def Codec_Xref: Codec[Xref] =
-    productCodec(
-      str("xref") ~> nlWs ~> manyTill1Codec(trailerKw)(table).withContext("xref tables") ~
-      (skipWs ~> Codec_Trailer) ~
+    (
+      (str("xref") ~> nlWs) ~>
+      tables ::
+      (skipWs ~> Codec_Trailer) ::
       startxref <~
-      str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
-    )
+      eof
+    ).as[Xref]
 }
