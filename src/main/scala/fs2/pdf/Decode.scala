@@ -20,6 +20,11 @@ object Decoded
   case class Meta(xrefs: NonEmptyList[Xref], trailer: Trailer, version: Version)
   extends Decoded
 
+  /**
+    * Trivially turn [[Decoded]] back into [[IndirectObj]]s.
+    *
+    * @return [[Pipe]] that turns [[Decoded]]s into [[IndirectObj]]
+    */
   def objects: Pipe[IO, Decoded, IndirectObj] =
     _.flatMap {
       case Decoded.DataObj(obj) =>
@@ -32,6 +37,12 @@ object Decoded
         fs2.Stream.empty
     }
 
+  /**
+    * State updating function for [[Rewrite.simpleParts]] that only collects the trailer and generalizes objects back
+    * to [[IndirectObj]].
+    *
+    * @return parts and updated state
+    */
   def part: RewriteState[Unit] => Decoded => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
       case Decoded.Meta(_, trailer, _) =>
@@ -44,22 +55,31 @@ object Decoded
         (Nil, state)
     }
 
+  /**
+    * Trivially turn [[Decoded]] back into encodable [[Part]]s.
+    *
+    * @return [[Pipe]] that turns [[Decoded]]s into [[Part]]
+    */
   def parts: Pipe[IO, Decoded, Part[Trailer]] =
     Rewrite.simpleParts(())(part)(update => Part.Meta(update.trailer))
 }
 
 object Decode
 {
+  private[this]
   case class State(xrefs: List[Xref], version: Option[Version])
 
+  private[this]
   def decodeObjectStream[A](stream: Uncompressed)(data: Prim)
   : Option[Attempt[Either[A, List[Decoded]]]] =
     Content.extractObjectStream(stream)(data)
       .map(_.map(_.objs).map(a => Right(a.map(Decoded.DataObj(_)))))
 
+  private[this]
   def trailer(data: Prim.Dict): Attempt[Trailer] =
     Trailer.fromData(data)
 
+  private[this]
   def extractMetadata(stream: Uncompressed)
   : Prim => Option[Attempt[Either[Xref, List[Decoded]]]] = {
     case Prim.tpe("XRef", data) =>
@@ -68,6 +88,7 @@ object Decode
       None
   }
 
+  private[this]
   def analyzeStream
   (index: Obj.Index, data: Prim)
   (rawStream: BitVector, stream: Uncompressed)
@@ -76,6 +97,7 @@ object Decode
       .orElse(extractMetadata(stream)(data))
       .getOrElse(Attempt.successful(Right(List(Decoded.ContentObj(Obj(index, data), rawStream, stream)))))
 
+  private[this]
   def contentObj
   (state: State)
   (index: Obj.Index, data: Prim, stream: BitVector)
@@ -87,6 +109,7 @@ object Decode
       case Left(xref) => Pull.pure(state.copy(xrefs = xref :: state.xrefs))
     }
 
+  private[this]
   def pullTopLevel(state: State): TopLevel => Pull[IO, Decoded, State] = {
     case TopLevel.IndirectObj(IndirectObj(Obj(index, data), Some(stream))) =>
       contentObj(state)(index, data, stream)
@@ -102,6 +125,7 @@ object Decode
       Pull.pure(state)
   }
 
+  private[this]
   def decodeTopLevelPull(in: Stream[IO, TopLevel]): Pull[IO, Decoded, Unit] =
     StreamUtil.pullState(pullTopLevel)(in)(State(Nil, None))
       .flatMap {
@@ -115,11 +139,24 @@ object Decode
           StreamUtil.failPull("no version in TopLevel stream")
       }
 
-  def decodeTopLevelPipe: Pipe[IO, TopLevel, Decoded] =
+  /**
+    * Lazily uncompress streams, extract objects from object streams, accumulate xrefs and separate content objects from
+    * data objects (those without streams).
+    *
+    * @return [[Pipe]] that turns [[TopLevel]]s into [[Decoded]]
+    */
+  def decodeTopLevel: Pipe[IO, TopLevel, Decoded] =
     decodeTopLevelPull(_).stream
 
+  /**
+    * This pipe chains [[TopLevel]] with [[FilterDuplicates]], which compensates for badly encoded PDFs, and turns the
+    * result into [[Decoded]].
+    *
+    * @param log
+    * @return [[Pipe]] that turns [[BitVector]]s into [[Decoded]]
+    */
   def decoded(log: Log): Pipe[IO, BitVector, Decoded] =
     TopLevel.pipe
       .andThen(FilterDuplicates.pipe(log))
-      .andThen(decodeTopLevelPipe)
+      .andThen(decodeTopLevel)
 }

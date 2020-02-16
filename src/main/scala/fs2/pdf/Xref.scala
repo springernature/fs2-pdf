@@ -93,19 +93,6 @@ extends XrefCodec
     Xref.Entry(Index.Compressed(obj, index), `type`)
 }
 
-case class StartXref(offset: Long)
-
-object StartXref
-{
-  import Text.{str, ascii}
-  import Whitespace.nlWs
-
-  implicit def Codec_StartXref: Codec[StartXref] =
-    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
-      .withContext("startxref")
-      .as[StartXref]
-}
-
 trait XrefCodec
 {
   import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
@@ -185,4 +172,17 @@ trait XrefCodec
       startxref <~
       eof
     ).as[Xref]
+}
+
+case class StartXref(offset: Long)
+
+object StartXref
+{
+  import Text.{str, ascii}
+  import Whitespace.nlWs
+
+  implicit def Codec_StartXref: Codec[StartXref] =
+    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
+      .withContext("startxref")
+      .as[StartXref]
 }
