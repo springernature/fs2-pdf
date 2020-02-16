@@ -33,7 +33,7 @@ object Generate
           StreamUtil.attemptPullWith("failed to encode object")(Codecs.encode(obj))(
             bits =>
               Pull.output1(bits) >>
-              encodeWithXref(trailer, start + bits.bytes.size)(generateXrefEntry(start)(obj.index) :: entries)(tail)
+              encodeWithXref(trailer, start + bits.bytes.size)(generateXrefEntry(start)(obj.obj.index) :: entries)(tail)
           )
         case None =>
           val encodeResult = Codecs.encode(generateXref(trailer, start, entries))

@@ -5,15 +5,14 @@ import cats.implicits._
 import codec.{Codecs, Newline, Text, Whitespace}
 import scodec._
 import scodec.bits._
-import shapeless.{::, HNil}
 
-case class IndirectObj(index: Obj.Index, data: Prim, stream: Option[BitVector])
+case class IndirectObj(obj: Obj, stream: Option[BitVector])
 
 object IndirectObj
 extends IndirectObjCodec
 {
   def nostream(number: Long, data: Prim): IndirectObj =
-    IndirectObj(Obj.Index(number, 0), data, None)
+    IndirectObj(Obj(Obj.Index(number, 0), data), None)
 
   def addLength(stream: BitVector): Prim => Prim = {
     case Prim.Dict(data) => Prim.Dict(data.updated("Length", Prim.Number(stream.bytes.size)))
@@ -24,7 +23,24 @@ extends IndirectObjCodec
     Prim.tryDict("Length")(data).as(data).getOrElse(addLength(stream)(data))
 
   def stream(number: Long, data: Prim, stream: BitVector): IndirectObj =
-    IndirectObj(Obj.Index(number, 0), ensureLength(stream)(data), Some(stream))
+    IndirectObj(Obj(Obj.Index(number, 0), ensureLength(stream)(data)), Some(stream))
+
+  object number
+  {
+    def unapply(obj: IndirectObj): Option[Long] =
+      Some(obj.obj.index.number)
+  }
+
+  object dict
+  {
+    def unapply(obj: IndirectObj): Option[(Long, Prim.Dict)] =
+      obj match {
+        case IndirectObj(Obj.dict(number, dict), _) =>
+          Some(number, dict)
+        case _ =>
+          None
+      }
+  }
 }
 
 private[pdf]
@@ -90,16 +106,18 @@ trait IndirectObjCodec
   val endobj: Codec[Unit] =
     str("endobj") <~ nlWs
 
-  val preStream: Codec[Obj.Index :: Prim :: HNil] =
-    objHeader :: prim
+  val preStream: Codec[Obj] =
+    (objHeader :: prim)
+      .as[Obj]
 
-  val stream: Obj.Index :: Prim :: HNil => Codec[Option[BitVector]] = {
-    case (_ :: data :: HNil) =>
+  val stream: Obj => Codec[Option[BitVector]] = {
+    case Obj(_, data) =>
       streamCodec(data)
   }
 
   implicit def Codec_IndirectObj: Codec[IndirectObj] =
-    (preStream.flatAppend(stream) <~ endobj)
+    (preStream.flatZip(stream) <~ endobj)
+      .flattenLeftPairs
       .as[IndirectObj]
 }
 
@@ -108,5 +126,5 @@ case class EncodedObj(xref: XrefObjMeta, bytes: ByteVector)
 object EncodedObj
 {
   def indirect(obj: IndirectObj): Attempt[EncodedObj] =
-    Codecs.encodeBytes(obj).map(bytes => EncodedObj(XrefObjMeta(obj.index, bytes.size), bytes))
+    Codecs.encodeBytes(obj).map(bytes => EncodedObj(XrefObjMeta(obj.obj.index, bytes.size), bytes))
 }

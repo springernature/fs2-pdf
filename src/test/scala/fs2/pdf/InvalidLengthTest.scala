@@ -2,8 +2,8 @@ package fs2
 package pdf
 
 import org.specs2.mutable.Specification
-import scodec.bits.BitVector
 import scodec.DecodeResult
+import scodec.bits.BitVector
 
 class InvalidLengthTest
 extends Specification
@@ -31,7 +31,7 @@ extends Specification
     )
 
   val target: IndirectObj =
-    IndirectObj(Obj.Index(1, 0), dict, Some(BitVector(streamBytes)))
+    IndirectObj.stream(1, dict, BitVector(streamBytes))
 
   "invalid stream length in dictionary" >>
   IndirectObj.Codec_IndirectObj

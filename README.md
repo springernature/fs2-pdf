@@ -249,9 +249,9 @@ def update(update: RewriteUpdate[PagesState]): Pull[IO, Part[Trailer], Unit] =
     case Pages(index, data, _, true) =>
       val updatedData = data ++ Prim.dict("Resources" -> Prim.dict("Font" -> Prim.dict("F1" -> Prim.Ref(1000L, 0))))
       Pull.output1(fontObj(1000L)) >>
-      Pull.output1(Part.Obj(IndirectObj(index, updatedData, None)))
+      Pull.output1(Part.Obj(IndirectObj(Obj(index, updatedData), None)))
     case Pages(index, data, _, false) =>
-      Pull.output1(Part.Obj(IndirectObj(index, data, None)))
+      Pull.output1(Part.Obj(IndirectObj(Obj(index, data), None)))
   }
 ```
 

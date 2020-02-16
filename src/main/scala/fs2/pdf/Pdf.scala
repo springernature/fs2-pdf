@@ -31,7 +31,7 @@ object Pdf
     _
       .through(PdfStream.topLevel)
       .collect {
-        case TopLevel.IndirectObj(IndirectObj(index @ Obj.Index(n, _), data, s)) if numbers.contains(n) =>
+        case TopLevel.IndirectObj(IndirectObj(Obj(index @ Obj.Index(n, _), data), s)) if numbers.contains(n) =>
           (Obj(index, data), s)
       }
 
@@ -113,7 +113,7 @@ object Pdf
       case Decoded.ContentObj(obj, _, stream) =>
         stream.exec match {
           case Attempt.Successful(s) =>
-            state.obj(PdfObj.Content(IndirectObj(obj.index, obj.data, Some(s))))
+            state.obj(PdfObj.Content(IndirectObj(obj, Some(s))))
           case Attempt.Failure(cause) =>
             state.error(s"broken stream for ${obj.index}: ${cause.messageWithContext}")
         }

@@ -12,7 +12,7 @@ import scodec.interop.cats.AttemptMonadErrorInstance
 object WriteLinearized
 {
   def objectNumber[A]: Part[A] => Attempt[Long] = {
-    case Part.Obj(IndirectObj(Obj.Index(n, _), _, _)) => Attempt.successful(n)
+    case Part.Obj(IndirectObj(Obj(Obj.Index(n, _), _), _)) => Attempt.successful(n)
     case Part.Unparsable(Obj.Index(n, _), _) => Attempt.successful(n)
     case _ => Scodec.fail("first part is not an object")
   }
@@ -118,7 +118,7 @@ object WriteLinearized
   }
 
   def linearizationObj(number: Long, data: Prim): IndirectObj =
-    IndirectObj(Obj.Index(number, 0), data, None)
+    IndirectObj(Obj(Obj.Index(number, 0), data), None)
 
   def createLinearizationPull(number: Long, params: LinearizationParams): Pull[IO, Nothing, ByteVector] =
     StreamUtil.attemptPull("create linearization object")(

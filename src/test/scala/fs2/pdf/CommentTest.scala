@@ -30,7 +30,7 @@ extends Specification
     )
 
   val target: IndirectObj =
-    IndirectObj(Obj.Index(1, 0), dict, None)
+    IndirectObj(Obj(Obj.Index(1, 0), dict), None)
 
   "invalid stream length in dictionary" >>
   IndirectObj.Codec_IndirectObj

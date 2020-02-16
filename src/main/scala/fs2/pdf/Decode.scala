@@ -23,11 +23,11 @@ object Decoded
   def objects: Pipe[IO, Decoded, IndirectObj] =
     _.flatMap {
       case Decoded.DataObj(obj) =>
-        Stream(IndirectObj(obj.index, obj.data, None))
+        Stream(IndirectObj(obj, None))
       case Decoded.ContentObj(obj, _, stream) =>
         StreamUtil.attemptStream("Decode.indirectObjs")(stream.exec)
           .map(Some(_))
-          .map(IndirectObj(obj.index, obj.data, _))
+          .map(IndirectObj(obj, _))
       case Decoded.Meta(_, _, _) =>
         fs2.Stream.empty
     }
@@ -36,10 +36,10 @@ object Decoded
     state => {
       case Decoded.Meta(_, trailer, _) =>
         (Nil, state.copy(trailer = Some(trailer)))
-      case Decoded.DataObj(Obj(index, data)) =>
-        (List(Part.Obj(IndirectObj(index, data, None))), state)
-      case Decoded.ContentObj(Obj(index, data), rawStream, _) =>
-        (List(Part.Obj(IndirectObj(index, data, Some(rawStream)))), state)
+      case Decoded.DataObj(obj) =>
+        (List(Part.Obj(IndirectObj(obj, None))), state)
+      case Decoded.ContentObj(obj, rawStream, _) =>
+        (List(Part.Obj(IndirectObj(obj, Some(rawStream)))), state)
       case _ =>
         (Nil, state)
     }
@@ -88,12 +88,12 @@ object Decode
     }
 
   def pullTopLevel(state: State): TopLevel => Pull[IO, Decoded, State] = {
-    case TopLevel.IndirectObj(IndirectObj(index, data, Some(stream))) =>
+    case TopLevel.IndirectObj(IndirectObj(Obj(index, data), Some(stream))) =>
       contentObj(state)(index, data, stream)
-    case TopLevel.IndirectObj(IndirectObj(_, Prim.Dict(data), None)) if data.contains("Linearized") =>
+    case TopLevel.IndirectObj(IndirectObj(Obj(_, Prim.Dict(data)), None)) if data.contains("Linearized") =>
       Pull.pure(state)
-    case TopLevel.IndirectObj(IndirectObj(index, data, None)) =>
-      Pull.output1(Decoded.DataObj(Obj(index, data))).as(state)
+    case TopLevel.IndirectObj(IndirectObj(obj, None)) =>
+      Pull.output1(Decoded.DataObj(obj)).as(state)
     case TopLevel.Version(version) =>
       Pull.pure(state.copy(version = Some(version)))
     case TopLevel.Xref(xref) =>

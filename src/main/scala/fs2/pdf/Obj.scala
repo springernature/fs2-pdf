@@ -43,6 +43,17 @@ extends ObjCodec
     def unapply(obj: Obj): Option[(String, Prim.Dict)] =
       Prim.subtype.unapply(obj.data)
   }
+
+  object dict
+  {
+    def unapply(obj: Obj): Option[(Long, Prim.Dict)] =
+      obj match {
+        case Obj(Obj.Index(number, _), dict @ Prim.Dict(_)) =>
+          Some(number, dict)
+        case _ =>
+          None
+      }
+  }
 }
 
 private[pdf]

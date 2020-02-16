@@ -266,7 +266,7 @@ extends PrimCodec
     Prim.Ref(to.number, to.generation)
 
   def refT(to: IndirectObj): Prim =
-    refI(to.index)
+    refI(to.obj.index)
 
   def refNum(to: Long): Prim =
     Prim.Ref(to, 0)

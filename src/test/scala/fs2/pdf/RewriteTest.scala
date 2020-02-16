@@ -4,31 +4,12 @@ package pdf
 import cats.effect.IO
 import org.specs2.mutable.Specification
 
-object RewriteTest
-{
-  def collect: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
-    state => {
-      case Element.Meta(trailer, _) =>
-        (Nil, state.copy(trailer = Some(trailer)))
-      case Element.Data(Obj(index, data), _) =>
-        (List(Part.Obj(IndirectObj(index, data, None))), state)
-      case Element.Content(Obj(index, data), rawStream, _, _) =>
-        (List(Part.Obj(IndirectObj(index, data, Some(rawStream)))), state)
-      case _ =>
-        (Nil, state)
-    }
-
-  def update: RewriteUpdate[Unit] => Part[Trailer] =
-    update => Part.Meta(update.trailer)
-
-}
-
 class RewriteTest
 extends Specification
 {
   def pipe(log: Log): Pipe[IO, Byte, Unit] =
     PdfStream.elements(log)
-      .andThen(Rewrite.simple(())(RewriteTest.collect)(RewriteTest.update))
+      .andThen(Element.encode)
       .andThen(Write.bytes("test-out.pdf"))
 
   "parse pdf" >>

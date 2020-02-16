@@ -10,7 +10,6 @@ import scodec.interop.cats.BitVectorMonoidInstance
 class GenerateTiffPdfTest
 extends Specification
 {
-  import Obj.Index
   import Prim._
 
   def page1Obj(image: IndirectObj): IndirectObj =
@@ -53,7 +52,7 @@ extends Specification
     )
 
   def imageObj(imageStream: BitVector): IndirectObj =
-    IndirectObj(Index(4, 0), imageDict, Some(imageStream))
+    IndirectObj.stream(4, imageDict, imageStream)
 
   def id: Prim =
     Prim.HexStr(hex"FF1FE073E0365E226E145B0CC9CB0758")

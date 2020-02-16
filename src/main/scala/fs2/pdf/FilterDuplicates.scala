@@ -23,7 +23,7 @@ object FilterDuplicates
   }
 
   def filter(state: State): TopLevel => Pull[IO, TopLevel, State] = {
-    case topLevel @ TopLevel.IndirectObj(IndirectObj(Obj.Index(num, _), _, _)) =>
+    case topLevel @ TopLevel.IndirectObj(IndirectObj(Obj(Obj.Index(num, _), _), _)) =>
       check(state)(num, topLevel)
     case topLevel @ TopLevel.Xref(_) =>
       Pull.output1(topLevel).as(state.copy(update = true))

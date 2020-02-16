@@ -25,9 +25,9 @@ object ValidatePdf
 
   def collectRefs(z: Refs, obj: PdfObj): Refs =
     obj match {
-      case PdfObj.Content(IndirectObj(Obj.Index(number, _), dict @ Prim.Dict(_), _)) =>
+      case PdfObj.Content(IndirectObj.dict(number, dict)) =>
         z.content(collectRefFromDict(number, dict))
-      case PdfObj.Data(Obj(Obj.Index(number, _), dict @ Prim.Dict(_))) =>
+      case PdfObj.Data(Obj.dict(number, dict)) =>
         z.content(collectRefFromDict(number, dict))
       case PdfObj.Unparsable(_, _) =>
         ???
@@ -38,7 +38,7 @@ object ValidatePdf
   def indirect(pdf: Pdf): List[IndirectObj] =
     pdf.objs.collect {
       case PdfObj.Content(obj) => obj
-      case PdfObj.Data(obj) => IndirectObj(obj.index, obj.data, None)
+      case PdfObj.Data(obj) => IndirectObj(Obj(obj.index, obj.data), None)
     }
 
   def validateContentStream(byNumber: Map[Long, IndirectObj]): ContentRef => ValidatedNel[String, Unit] = {
@@ -46,9 +46,9 @@ object ValidatePdf
       byNumber.lift(target) match {
         case None =>
           Validated.Invalid(NonEmptyList.one(s"content object $target missing (owner $owner)"))
-        case Some(IndirectObj(_, Prim.refs(refs), None)) =>
+        case Some(IndirectObj(Obj(_, Prim.refs(refs)), None)) =>
           refs.traverse_(r => validateContentStream(byNumber)(ContentRef(owner, r.number)))
-        case Some(IndirectObj(_, _, None)) =>
+        case Some(IndirectObj(_, None)) =>
           Validated.Invalid(NonEmptyList.one(s"content object $target has no stream (owner $owner)"))
         case _ =>
           Validated.Valid(())
@@ -87,7 +87,7 @@ object ValidatePdf
   def validatePages(byNumber: Map[Long, IndirectObj], pdf: Pdf): ValidatedNel[String, Unit] = {
     Validated.fromOption(pdf.trailer.root, NonEmptyList.one("no Root in trailer"))
       .andThen(catRef => opt("couldn't find catalog")(byNumber.lift(catRef.number)))
-      .andThen(cat => att("no Pages in catalog")(Prim.Dict.path("Pages")(cat.data)( { case r @ Prim.Ref(_, _) => r } )))
+      .andThen(cat => att("no Pages in catalog")(Prim.Dict.path("Pages")(cat.obj.data)( { case r @ Prim.Ref(_, _) => r } )))
       .andThen(rootRef => opt("couldn't find root Pages")(byNumber.lift(rootRef.number)))
       .andThen(collectPages(byNumber))
       .andThen { a =>
@@ -100,7 +100,7 @@ object ValidatePdf
     refs.contents.foldMap(validateContentStream(byNumber))
 
   def objsByNumber(pdf: Pdf): Map[Long, IndirectObj] =
-    indirect(pdf).map(a => (a.index.number, a)).toMap
+    indirect(pdf).map(a => (a.obj.index.number, a)).toMap
 
   def apply(pdf: Pdf): ValidatedNel[String, Unit] = {
     val byNumber = objsByNumber(pdf)
@@ -117,7 +117,7 @@ object ValidatePdf
 object ComparePdfs
 {
   def compareObjs: ((Long, (Option[IndirectObj], Option[IndirectObj]))) => ValidatedNel[String, Unit] = {
-    case (num, (Some(IndirectObj(_, data, Some(_))), Some(IndirectObj(_, _, None)))) =>
+    case (num, (Some(IndirectObj(Obj(_, data), Some(_))), Some(IndirectObj(_, None)))) =>
       Validated.invalidNel(s"stream deleted from object $num:\n$data")
     case (num, (Some(a), None)) =>
       Validated.invalidNel(s"object $num missing from updated pdf:\n$a")

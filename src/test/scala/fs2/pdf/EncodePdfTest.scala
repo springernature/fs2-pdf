@@ -11,7 +11,6 @@ class EncodePdfTest
 extends Specification
 {
   import BasicResources.cs
-  import Obj.Index
 
   val page1ObjNumber: Int = 1
 
@@ -64,7 +63,7 @@ extends Specification
     )
 
   def contentObj: IndirectObj =
-    IndirectObj(Index(5, 0), Prim.dict("Length" -> Prim.num(contentStream.size)),  Some(contentStream.bits))
+    IndirectObj.stream(5, Prim.dict("Length" -> Prim.num(contentStream.size)), contentStream.bits)
 
   def resourcesObj: IndirectObj =
     IndirectObj.nostream(6, Prim.dict(

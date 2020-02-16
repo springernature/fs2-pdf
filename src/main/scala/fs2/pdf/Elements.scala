@@ -5,7 +5,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import fs2.{Pipe, Stream}
 import scodec.Attempt
-import scodec.bits.BitVector
+import scodec.bits.{BitVector, ByteVector}
 
 case class MediaBox(x: BigDecimal, y: BigDecimal, w: BigDecimal, h: BigDecimal)
 
@@ -26,7 +26,7 @@ object Page
   object obj
   {
     def unapply(obj: IndirectObj): Option[Page] =
-      fromData(obj.index)(obj.data).toOption
+      fromData(obj.obj.index)(obj.obj.data).toOption
   }
 }
 
@@ -46,7 +46,7 @@ object Pages
   object obj
   {
     def unapply(obj: IndirectObj): Option[Pages] =
-      fromData(obj.index)(obj.data).toOption
+      fromData(obj.obj.index)(obj.obj.data).toOption
   }
 }
 
@@ -123,8 +123,8 @@ object Element
   {
     def unapply(element: Element): Option[IndirectObj] =
       element match {
-        case Data(obj, _) => Some(IndirectObj(obj.index, obj.data, None))
-        case Content(obj, stream, _, _) => Some(IndirectObj(obj.index, obj.data, Some(stream)))
+        case Data(obj, _) => Some(IndirectObj(obj, None))
+        case Content(obj, stream, _, _) => Some(IndirectObj(obj, Some(stream)))
         case Meta(_, _) => None
       }
   }
@@ -139,6 +139,9 @@ object Element
 
   def parts: Pipe[IO, Element, Part[Trailer]] =
     Rewrite.simpleParts(())(part)(Rewrite.noUpdate)
+
+  def encode: Pipe[IO, Element, ByteVector] =
+    Rewrite.simple(())(part)(Rewrite.noUpdate)
 }
 
 object AnalyzeData
