@@ -279,16 +279,22 @@ A heuristical method for keeping already linearized documents intact is in devel
 
 # Development
 
-### Testing
+## Testing
 
 ```bash
 ops/sbt test
 ```
 
-[fs2]: https://fs2.io
-[scodec]: https://scodec.org
+## Publishing
+
+If you work at SpringerNature and have access to this project's pipeline, you can trigger a deployment to Maven with
+the script at `ops/trigger-publish.bash`, which will verify some conditions and start the publish pipeline job.
+
 # License
 
 Copyright 2020 SpringerNature
 
 **fs2-pdf** is licensed under the Apache License 2.0
+
+[fs2]: https://fs2.io
+[scodec]: https://scodec.org
