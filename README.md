@@ -154,6 +154,13 @@ val reencoded: Stream[IO, Byte] =
 val result: IO[ValidatedNel[String, Unit]] = raw.through(PdfStream.validate(Log.noop))
 ```
 
+# Limitations
+
+Linearization is not possible at the moment, since the linearization parameter dict is the first object and needs
+information that is only available later, like the total file size.
+
+A heuristical method for keeping already linearized documents intact is in development.
+
 # Development
 
 ### Testing
