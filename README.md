@@ -21,7 +21,7 @@ Raw data is processed with [scodec] and stored as `BitVector`s and `ByteVector`s
 import fs2.pdf._
 ```
 
-### Decoding
+## Decoding
 
 The coarsest useful data types are provided by `wm.pdf.PdfStream.topLevel`, producing the ADT `TopLevel`:
 
@@ -137,18 +137,134 @@ val decoded: Stream[IO, Decoded] =
   raw.through(PdfStream.decode(Log.noop)) // you can provide a real logger with `fs2.pdf.Log.io`
 ```
 
-### Encoding
+For another level of abstraction, the `Element` algebra represents semantics of objects:
+
+```scala
+object DataKind
+{
+  case object General
+  case class Page(page: pdf.Page)
+  case class Pages(pages: pdf.Pages)
+  case class Array(data: Prim.Array)
+  case class FontResource(res: pdf.FontResource)
+}
+
+case class Data(obj: Obj, kind: DataKind)
+
+object ContentKind
+{
+  case object General
+  case class Image(image: pdf.Image)
+}
+
+case class Content(obj: Obj, rawStream: BitVector, stream: Uncompressed, kind: ContentKind)
+
+case class Meta(trailer: Trailer, version: Version)
+```
+
+To use this:
+
+```scala
+val elements: Stream[IO, Element] =
+  raw.through(PdfStream.elements(Log.noop))
+```
+
+## Encoding
 
 A stream of indirect objects can be encoded into a pdf document, with automatic generation of the cross reference table.
 
 ```scala
 val reencoded: Stream[IO, Byte] =
   decoded
-    .through(Parsed.indirectObjs)
-    .through(WritePdf.objects(Trailer(Prim.Dict.empty)))
+    .through(Decoded.parts)
+    .through(WritePdf.parts)
+    .through(Write.bytes("/path/to/file.pdf"))
 ```
 
-### Validation
+or
+
+```scala
+val reencoded: Stream[IO, Byte] =
+  elements
+    .through(Element.parts)
+    .through(WritePdf.parts)
+    .through(Write.bytes("/path/to/file.pdf"))
+```
+
+The intermediate data type `Part` is used to carry over the trailer into the encoder.
+Instead of `Decoded.parts` and `WritePdf.parts`, you could also use `Decoded.objects` and `WritePdf.objects`, but then you would
+have to specify a trailer dictionary for the encoder.
+`Decoded.parts` extracts this information from the input trailer.
+
+## Transforming
+
+Since you won't just want to reencode the original data, a step in between decoding and encoding should manipulate it.
+The pipes in `Rewrite` are used in `Decoded.parts`, and they allow more complex transformations by keeping a state when
+analyzing objects and using it to create additions to the document.
+
+The rewrite works in two stages, `collect` and `update`:
+
+```scala
+case class PagesState(pages: List[Pages])
+val initialState: PagesState = PagesState(Nil)
+val result: Stream[IO, ByteVector] =
+  elements
+    .through(Rewrite(initialState)(collect)(update))
+```
+
+In `collect`, every `Element` (or `Decoded`) will be evaluated by a stateful function that allows you to prevent objects from
+being written and instead collect them for an update:
+
+```scala
+def collect(state: RewriteState[PagesState]): Element => Pull[IO, Part[Trailer], RewriteState[PagesState]] = {
+  case Element.Data(_, Element.DataKind.Pages(pages)) =>
+    Pull.pure(state.copy(state = state.state.copy(pages = pages :: state.state.pages)))
+  case Element.obj(obj) =>
+    Pull.output1(Part.Obj(obj)) >> Pull.pure(state)
+  case Element.Meta(trailer, _) =>
+    Pull.pure(state.copy(trailer = Some(trailer)))
+}
+```
+
+Here we get our state, wrapped in `RewriteState`, which tracks the trailer, and an `Element` passed into our function.
+The output is `fs2.Pull`, on which you can call `Pull.output1` to instruct the stream to emit a PDF part, and `Pull.pure` to
+return the updated state.
+
+There is a variant `Rewrite.simple` that hides the `Pull` from these signatures and instead expects you to return
+`(List[Part[Trailer]], RewriteState[PagesState])`.
+
+In this example, we match on `DataKind.Pages` and do not call `Pull.output1` in this case, but add the pages to our state.
+In the case of any other object, which we match with the convenience extractor `Element.obj`, we just pass through as a
+`Part.Obj`.
+Finally, the trailer has to be carried over in the state.
+
+In `update`, we use the collected pages to do some analysis and then write them back to the stream:
+
+```scala
+val fontObj(number: Long): IndirectObj =
+  ???
+
+def update(update: RewriteUpdate[PagesState]): Pull[IO, Part[Trailer], Unit] =
+  Pull.output1(Part.Trailer(update.trailer)) >> update.state.pages.traverse_ {
+    case Pages(index, data, _, true) =>
+      val updatedData = data ++ Prim.dict("Resources" -> Prim.dict("Font" -> Prim.dict("F1" -> Prim.Ref(1000L, 0))))
+      Pull.output1(fontObj(1000L)) >>
+      Pull.output1(Part.Obj(IndirectObj(index, updatedData, None)))
+    case Pages(index, data, _, false) =>
+      Pull.output1(Part.Obj(IndirectObj(index, data, None)))
+  }
+```
+
+`RewriteUpdate` is the same as `RewriteState`, except that the trailer isn't optional anymore.
+If there is no trailer in the state at the end of the stream, an error is raised.
+
+In this function, we first emit the trailer, then we iterate over our collected pages and match on the boolean `root`
+field.
+If we found the root page tree object, we first emit a custom font descriptor (not implemented here), then add
+a reference to it to the page root's `Resource` dictionary (this is of course an incomplete simplification).
+For all other pages objects, we just write the original data.
+
+## Validation
 
 ```scala
 val result: IO[ValidatedNel[String, Unit]] = raw.through(PdfStream.validate(Log.noop))
