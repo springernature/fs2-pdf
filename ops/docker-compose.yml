@@ -2,7 +2,7 @@ version: '3.6'
 
 services:
   build:
-    image: eu.gcr.io/halfpipe-io/sprcom/sf-ci-publish
+    image: eu.gcr.io/halfpipe-io/sprcom/sf-ci-publish:v1.0.0
     volumes:
     - ..:/code
     working_dir: /code
