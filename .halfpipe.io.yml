@@ -1,6 +1,9 @@
 team: sprcom
 pipeline: fs2-pdf
 slack_channel: '#sprcom-janitors'
+triggers:
+  - type: git
+    branch: maven
 tasks:
 - type: docker-compose
   name: test
@@ -18,5 +21,6 @@ tasks:
     artifactory_password: ((sprcom-artifactory.authtoken))
     github_ssh_key: ((sprcom-artifactory.sshkey))
     sf_ci_gpg_main: ((sf-ci-gpg-main.key))
+    sf_ci_sonatype_password: ((sf-ci-sonatype.password))
 feature_toggles:
 - update-pipeline
