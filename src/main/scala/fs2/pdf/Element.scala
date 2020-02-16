@@ -96,6 +96,9 @@ object Element
 
     case class FontResource(res: pdf.FontResource)
     extends DataKind
+
+    case class Info(data: Prim.Dict)
+    extends DataKind
   }
 
   case class Data(obj: Obj, kind: DataKind)
@@ -115,7 +118,7 @@ object Element
   case class Content(obj: Obj, rawStream: BitVector, stream: Uncompressed, kind: ContentKind)
   extends Element
 
-  case class Meta(trailer: Trailer, version: Version)
+  case class Meta(trailer: Option[Trailer], version: Option[Version])
   extends Element
 
   object obj
@@ -133,7 +136,7 @@ object Element
       case obj(obj) =>
         (List(Part.Obj(obj)), state)
       case Element.Meta(trailer, _) =>
-        (Nil, state.copy(trailer = Some(trailer)))
+        (Nil, state.copy(trailer = trailer))
     }
 
   def parts: Pipe[IO, Element, Part[Trailer]] =

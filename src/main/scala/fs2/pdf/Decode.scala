@@ -72,14 +72,9 @@ object Decode
   def decodeTopLevelPull(in: Stream[IO, TopLevel]): Pull[IO, Decoded, Unit] =
     StreamUtil.pullState(pullTopLevel)(in)(State(Nil, None))
       .flatMap {
-        case State(h :: t, Some(version)) =>
-          val xrefs = NonEmptyList(h, t)
+        case State(xrefs, version) =>
           val trailers = xrefs.map(_.trailer)
-          Pull.output1(Decoded.Meta(xrefs, Trailer.sanitize(trailers), version))
-        case State(Nil, _) =>
-          StreamUtil.failPull("no xref in TopLevel stream")
-        case State(_, None) =>
-          StreamUtil.failPull("no version in TopLevel stream")
+          Pull.output1(Decoded.Meta(xrefs, NonEmptyList.fromList(trailers).map(Trailer.sanitize), version))
       }
 
   /**

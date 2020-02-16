@@ -1,7 +1,6 @@
 package fs2
 package pdf
 
-import cats.data.NonEmptyList
 import cats.effect.IO
 import fs2.{Pipe, Stream}
 import scodec.bits.BitVector
@@ -25,7 +24,7 @@ object Decoded
   case class ContentObj(obj: Obj, rawStream: BitVector, stream: Uncompressed)
   extends Decoded
 
-  case class Meta(xrefs: NonEmptyList[Xref], trailer: Trailer, version: Version)
+  case class Meta(xrefs: List[Xref], trailer: Option[Trailer], version: Option[Version])
   extends Decoded
 
   /**
@@ -54,7 +53,7 @@ object Decoded
   def part: RewriteState[Unit] => Decoded => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
       case Decoded.Meta(_, trailer, _) =>
-        (Nil, state.copy(trailer = Some(trailer)))
+        (Nil, state.copy(trailer = trailer))
       case Decoded.DataObj(obj) =>
         (List(Part.Obj(IndirectObj(obj, None))), state)
       case Decoded.ContentObj(obj, rawStream, _) =>

@@ -5,12 +5,12 @@ import cats.effect.IO
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.ByteVector
 
-case class RewriteState[S](state: S, trailer: Option[Trailer])
+case class RewriteState[S](state: S, trailer: Option[Trailer], root: Option[Prim.Ref])
 
 object RewriteState
 {
   def cons[S](state: S): RewriteState[S] =
-    RewriteState(state, None)
+    RewriteState(state, None, None)
 }
 
 case class RewriteUpdate[S](state: S, trailer: Trailer)
@@ -19,11 +19,14 @@ object Rewrite
 {
   private[this]
   def emitUpdate[S]: RewriteState[S] => Pull[IO, Part[Trailer], RewriteUpdate[S]] = {
-    case RewriteState(state, Some(trailer)) =>
+    case RewriteState(state, Some(trailer), _) =>
       Pull.output1(Part.Meta(trailer))
         .as(RewriteUpdate(state, trailer))
-    case RewriteState(_, None) =>
-      StreamUtil.failPull("no trailer in rewrite stream")
+    case RewriteState(state, None, Some(root)) =>
+      val trailer = Trailer(-1, Prim.dict("Root" -> root), Some(root))
+      Pull.output1(Part.Meta(trailer)).as(RewriteUpdate(state, trailer))
+    case RewriteState(_, None, None) =>
+      StreamUtil.failPull("no trailer or root in rewrite stream")
   }
 
   private[this]
