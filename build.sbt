@@ -11,7 +11,7 @@ val doobieVersion = "0.8.6"
 val tapirVersion = "0.12.12"
 val log4catsVersion = "1.0.0"
 
-name := "fs2-pdf"
+name := "fs2-pdf-test"
 addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3")
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
 libraryDependencies ++= List(
