@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-sf-ci-publish-maven fs2-pdf
+sf-ci-publish-maven fs2-pdf maven
