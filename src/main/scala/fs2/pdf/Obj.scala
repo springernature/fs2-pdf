@@ -47,14 +47,14 @@ extends ObjCodec
 private[pdf]
 trait ObjCodec
 {
-  import Whitespace.{nlWs, skipWs, ws}
+  import Whitespace.{nlWs, skipWs}
   import Text.str
 
   val codecPreStream: Codec[Obj] =
-    ((skipWs ~> Codec[Obj.Index] <~ ws) :: Prim.Codec_Prim <~ ws)
+    ((skipWs ~> Codec[Obj.Index] <~ nlWs) :: Prim.Codec_Prim <~ nlWs)
       .as[Obj]
 
   implicit val Codec_Obj: Codec[Obj] =
-    (codecPreStream <~ nlWs <~ str("endobj") <~ nlWs)
+    (codecPreStream <~ str("endobj") <~ nlWs)
       .as[Obj]
 }
