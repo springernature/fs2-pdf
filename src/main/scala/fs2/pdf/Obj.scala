@@ -11,6 +11,7 @@ object Obj
 extends ObjCodec
 {
   import Text.{ascii, str}
+  import Whitespace.space
 
   case class Index(number: Long, generation: Int)
 
@@ -22,7 +23,7 @@ extends ObjCodec
     }
 
     implicit def Codec_Index: Codec[Index] =
-      ((ascii.long <~ str(" ")) ~ (ascii.int <~ str(" obj")))
+      ((ascii.long <~ space) ~ (ascii.int <~ space <~ str("obj")))
         .xmap(Obj.Index(_, _), a => (a.number, a.generation))
   }
 
