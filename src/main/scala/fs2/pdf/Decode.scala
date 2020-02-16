@@ -19,6 +19,33 @@ object Decoded
 
   case class Meta(xrefs: NonEmptyList[Xref], trailer: Trailer, version: Version)
   extends Decoded
+
+  def objects: Pipe[IO, Decoded, IndirectObj] =
+    _.flatMap {
+      case Decoded.DataObj(obj) =>
+        Stream(IndirectObj(obj.index, obj.data, None))
+      case Decoded.ContentObj(obj, _, stream) =>
+        StreamUtil.attemptStream("Decode.indirectObjs")(stream.exec)
+          .map(Some(_))
+          .map(IndirectObj(obj.index, obj.data, _))
+      case Decoded.Meta(_, _, _) =>
+        fs2.Stream.empty
+    }
+
+  def part: RewriteState[Unit] => Decoded => (List[Part[Trailer]], RewriteState[Unit]) =
+    state => {
+      case Decoded.Meta(_, trailer, _) =>
+        (Nil, state.copy(trailer = Some(trailer)))
+      case Decoded.DataObj(Obj(index, data)) =>
+        (List(Part.Obj(IndirectObj(index, data, None))), state)
+      case Decoded.ContentObj(Obj(index, data), rawStream, _) =>
+        (List(Part.Obj(IndirectObj(index, data, Some(rawStream)))), state)
+      case _ =>
+        (Nil, state)
+    }
+
+  def parts: Pipe[IO, Decoded, Part[Trailer]] =
+    Rewrite.simpleParts(())(part)(update => Part.Meta(update.trailer))
 }
 
 object Decode
@@ -97,17 +124,4 @@ object Decode
     TopLevel.pipe
       .andThen(FilterDuplicates.pipe(log))
       .andThen(decodeTopLevelPipe)
-
-
-  def indirectObjs: Pipe[IO, Decoded, IndirectObj] =
-    _.flatMap {
-      case Decoded.DataObj(obj) =>
-        Stream(IndirectObj(obj.index, obj.data, None))
-      case Decoded.ContentObj(obj, _, stream) =>
-        StreamUtil.attemptStream("Decode.indirectObjs")(stream.exec)
-          .map(Some(_))
-          .map(IndirectObj(obj.index, obj.data, _))
-      case Decoded.Meta(_, _, _) =>
-        fs2.Stream.empty
-    }
 }

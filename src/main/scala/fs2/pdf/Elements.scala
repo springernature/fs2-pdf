@@ -118,6 +118,27 @@ object Element
 
   case class Meta(trailer: Trailer, version: Version)
   extends Element
+
+  object obj
+  {
+    def unapply(element: Element): Option[IndirectObj] =
+      element match {
+        case Data(obj, _) => Some(IndirectObj(obj.index, obj.data, None))
+        case Content(obj, stream, _, _) => Some(IndirectObj(obj.index, obj.data, Some(stream)))
+        case Meta(_, _) => None
+      }
+  }
+
+  def part: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
+    state => {
+      case obj(obj) =>
+        (List(Part.Obj(obj)), state)
+      case Element.Meta(trailer, _) =>
+        (Nil, state.copy(trailer = Some(trailer)))
+    }
+
+  def parts: Pipe[IO, Element, Part[Trailer]] =
+    Rewrite.simpleParts(())(part)(Rewrite.noUpdate)
 }
 
 object AnalyzeData

@@ -64,6 +64,13 @@ object Rewrite
     Pull.output(Chunk.seq(part)).as(newState)
   }
 
+  def simpleParts[S, A]
+  (initial: S)
+  (collect: RewriteState[S] => A => (List[Part[Trailer]], RewriteState[S]))
+  (update: RewriteUpdate[S] => Part[Trailer])
+  : Pipe[IO, A, Part[Trailer]] =
+    rewriteAndUpdate(initial)(simpleCollect(collect))(update.andThen(Pull.output1))(_).stream
+
   def simple[S, A]
   (initial: S)
   (collect: RewriteState[S] => A => (List[Part[Trailer]], RewriteState[S]))
@@ -82,4 +89,7 @@ object Rewrite
       } yield ()
       p.stream.collect { case Right(RewriteUpdate(s, _)) => s }
     }
+
+  def noUpdate[S]: RewriteUpdate[S] => Part[Trailer] =
+    update => Part.Meta(update.trailer)
 }
