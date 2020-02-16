@@ -100,8 +100,6 @@ object Decode
       Pull.pure(state.copy(xrefs = xref :: state.xrefs))
     case TopLevel.StartXref(_) =>
       Pull.pure(state)
-    case TopLevel.Comment(_) =>
-      Pull.pure(state)
   }
 
   def decodeTopLevelPull(in: Stream[IO, TopLevel]): Pull[IO, Decoded, Unit] =

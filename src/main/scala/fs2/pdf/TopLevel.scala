@@ -9,6 +9,50 @@ import scodec.bits.BitVector
 import scodec.stream.StreamDecoder
 import shapeless.{:+:, CNil}
 
+/**
+  * Represents the different chunks of data that can appear at the top level of a PDF document.
+  *
+  * Indirect objects look like this:
+  * {{{
+  * 10 0 obj
+  * <<
+  * /Key /Value
+  * /Array [1 2 3]
+  * >>
+  * stream
+  * endstream
+  * ...
+  * endobj
+  * }}}
+  * with the stream being optional.
+  *
+  * Version headers look like this:
+  * {{{
+  * %PDF-1.7
+  * }}}
+  *
+  * Comments start with %
+  *
+  * Xref, the cross-reference table, contains the offset of each object:
+  * {{{
+  * xref
+  * 0 10
+  *
+  * 0000000000 65535 f
+  * 0000112053 00000 n
+  * ...
+  * 0000111175 00000 n
+  * trailer
+  * <<
+  * ...
+  * >>
+  * startxref
+  * 123
+  * %%EOF
+  * }}}
+  *
+  * StartXref encodes only the last three lines of an xref, since they can occur independently.
+  */
 sealed trait TopLevel
 
 object TopLevel
@@ -17,9 +61,6 @@ object TopLevel
   extends TopLevel
 
   case class Version(version: pdf.Version)
-  extends TopLevel
-
-  case class Comment(data: pdf.Comment)
   extends TopLevel
 
   case class Xref(version: pdf.Xref)
@@ -36,7 +77,7 @@ object TopLevel
     * @return [[Decoder]] for [[TopLevel]]
     */
   def Decoder_TopLevel: Decoder[TopLevel] =
-    Codec.coproduct[IndirectObj :+: Version :+: Comment :+: Xref :+: StartXref :+: CNil].choice.as[TopLevel]
+    Codec.coproduct[IndirectObj :+: Version :+: Xref :+: StartXref :+: CNil].choice.as[TopLevel]
 
   /**
     * Decode a top level PDF element like indirect objects, version tags, comments and cross reference tables.
