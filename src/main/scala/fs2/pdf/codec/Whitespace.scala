@@ -8,6 +8,7 @@ import scodec.bits.ByteVector
 import scodec.codecs._
 import scodec.interop.cats.DecoderMonadInstance
 
+private[pdf]
 object Whitespace
 {
   import Newline._

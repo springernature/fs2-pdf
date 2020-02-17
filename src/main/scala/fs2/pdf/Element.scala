@@ -6,10 +6,21 @@ import cats.effect.IO
 import scodec.Attempt
 import scodec.bits.{BitVector, ByteVector}
 
+/**
+  * MediaBox is a mandatory field in [[Page]] dictionaries that specifies the page's geometry.
+  */
 case class MediaBox(x: BigDecimal, y: BigDecimal, w: BigDecimal, h: BigDecimal)
 
+/**
+  * Convenience record for Page objects with mandatory [[MediaBox]]
+  *
+  * @param mediaBox page geometry
+  */
 case class Page(index: Obj.Index, data: Prim.Dict, mediaBox: MediaBox)
 
+/**
+  * Helpers for extracting a [[Page]] from an [[IndirectObj]] or its components.
+  */
 object Page
 {
   def fromData(index: Obj.Index): Prim => Attempt[Page] = {
@@ -29,8 +40,18 @@ object Page
   }
 }
 
+/**
+  * Convenience record for Pages objects, which contain references to other Pages and Page objects forming the page
+  * tree, with mandatory Kids field.
+  *
+  * @param kids children of this Pages object, forming a balanced tree with page numbers going left-to-right
+  * @param root whether this object is the root referenced in the trailer
+  */
 case class Pages(index: Obj.Index, data: Prim.Dict, kids: NonEmptyList[Prim.Ref], root: Boolean)
 
+/**
+  * Helpers for extracting a [[Pages]] record from an [[IndirectObj]] or its components.
+  */
 object Pages
 {
   def fromData(index: Obj.Index): Prim => Attempt[Pages] = {
@@ -49,10 +70,26 @@ object Pages
   }
 }
 
+/**
+  * Marker record for data objects containing the /Font key, which may be used as indirect objects in page objects as
+  * resource dict.
+  *
+  */
 case class FontResource(index: Obj.Index, data: Prim.Dict)
 
+/**
+  * Convenience record for indirect objects containing a sole array.
+  *
+  * @param data the array with specialized type
+  */
 case class IndirectArray(index: Obj.Index, data: Prim.Array)
 
+/**
+  * An image with codec information, JPG or CCITT (TIFF), bundled with its uncompressed stream.
+  *
+  * @param stream uncompressed in case of a predictor, which may be used for CCITT
+  * @param codec either JPG or CCITT
+  */
 case class Image(data: Prim.Dict, stream: Uncompressed, codec: Image.Codec)
 
 object Image
@@ -74,6 +111,11 @@ object Image
   }
 }
 
+/**
+  * Abstracts different kinds of PDF objects semantically.
+  * To be extended by consumers of the library by creating a new ADT and matching the /Type entry of General instances.
+  * Two levels of specialization are used, for content (with stream) and data objects.
+  */
 sealed trait Element
 
 object Element
@@ -131,6 +173,7 @@ object Element
       }
   }
 
+  private[this]
   def part: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
       case obj(obj) =>
@@ -139,9 +182,15 @@ object Element
         (Nil, state.copy(trailer = trailer))
     }
 
+  /**
+    * @return a [[Pipe]] that converts elements back into [[Part]], which is encodable in [[WritePdf]].
+    */
   def parts: Pipe[IO, Element, Part[Trailer]] =
     Rewrite.simpleParts(())(part)(Rewrite.noUpdate)
 
+  /**
+    * @return a [[Pipe]] that encodes [[Element]] back to bytes.
+    */
   def encode: Pipe[IO, Element, ByteVector] =
     Rewrite.simple(())(part)(Rewrite.noUpdate)
 }

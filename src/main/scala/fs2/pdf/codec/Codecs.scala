@@ -8,6 +8,7 @@ import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder}
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs._
 
+private[pdf]
 object Codecs
 {
   def byte(data: Byte): Codec[Unit] =

@@ -7,6 +7,10 @@ import fs2.{Pipe, Stream}
 import scodec.Attempt
 import scodec.bits.BitVector
 
+/**
+  * Takes care of converting [[TopLevel]] into [[Decoded]], splitting PDF objects into [[DataObj]] and [[ContentObj]],
+  * discriminated by the existence of a content stream, and aggregating xref and version information.
+  */
 object Decode
 {
   private[this]

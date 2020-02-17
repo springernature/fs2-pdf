@@ -4,8 +4,12 @@ package pdf
 import cats.data.NonEmptyList
 import cats.implicits._
 
+/**
+  * Generate a cross-reference table from a list of object indexes and byte offsets, deduplicating and padding.
+  */
 object GenerateXref
 {
+  private[this]
   def xrefEntries(indexes: NonEmptyList[Obj.Index], sizes: NonEmptyList[Long], initialOffset: Long)
   : NonEmptyList[(Long, Xref.Entry)] =
     indexes
@@ -15,6 +19,7 @@ object GenerateXref
       }
       .sortBy(_._1)
 
+  private[this]
   def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] =
     entries
       .reduceLeftTo(a => NonEmptyList.one(a)) {
@@ -25,6 +30,7 @@ object GenerateXref
       .reverse
       .map(_._2)
 
+  private[this]
   def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
     entries
       .reduceLeftTo(NonEmptyList.one(_)) {
@@ -35,6 +41,13 @@ object GenerateXref
       }
       .reverse
 
+  /**
+    * @param meta indexes and byte offsets of referenced objects
+    * @param trailerDict trailer that will be amended with the size of the xref
+    * @param initialOffset the number of bytes in the document before the first referenced object, like the version
+    * header
+    * @return a deduplicated, padded, consecutive [[Xref]]
+    */
   def apply(
     meta: NonEmptyList[XrefObjMeta],
     trailerDict: Trailer,

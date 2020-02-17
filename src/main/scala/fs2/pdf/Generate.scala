@@ -8,6 +8,7 @@ import codec.Codecs
 import fs2.{Pipe, Pull, Stream}
 import scodec.bits.BitVector
 
+private[pdf]
 object Generate
 {
   def generateXrefEntry(start: Long)(index: Obj.Index): (Long, Xref.Entry) =

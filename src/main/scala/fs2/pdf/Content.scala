@@ -5,12 +5,22 @@ import cats.Eval
 import scodec.{Attempt, Err}
 import scodec.bits.{BitVector, ByteVector}
 
+/**
+  * Represents a content stream that may be compressed.
+  *
+  * The decompression is performed upon the first evaluation of the wrappped `Eval`.
+  * Decompression is only performed for supported decoders, consisting of Zip and Predictor; otherwise, the raw stream
+  * is produced.
+  *
+  * @param stream potentially uncompressed stream
+  */
 case class Uncompressed(stream: Eval[Attempt[BitVector]])
 {
   def exec: Attempt[BitVector] =
     stream.value
 }
 
+private[pdf]
 object Content
 {
   def extractObjectStream(stream: Uncompressed): Prim => Option[Attempt[ObjectStream]] = {

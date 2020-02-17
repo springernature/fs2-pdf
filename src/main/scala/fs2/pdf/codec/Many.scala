@@ -8,6 +8,7 @@ import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.BitVector
 import scodec.codecs._
 
+private[pdf]
 object Many
 {
   /**

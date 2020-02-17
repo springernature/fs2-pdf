@@ -5,6 +5,7 @@ import cats.effect.IO
 import fs2.{Pipe, Stream}
 import scodec.Attempt
 
+private[pdf]
 object AnalyzeData
 {
   val infoKeys: List[String] =
@@ -26,6 +27,7 @@ object AnalyzeData
   }
 }
 
+private[pdf]
 object AnalyzeContent
 {
   object SupportedCodec
@@ -46,8 +48,12 @@ object AnalyzeContent
   }
 }
 
+/**
+  * @see [[Element]]
+  */
 object Elements
 {
+  private[this]
   def element: Decoded => Attempt[Element] = {
     case Decoded.DataObj(obj) =>
       AnalyzeData(obj.index)(obj.data)
@@ -59,9 +65,13 @@ object Elements
       Attempt.successful(Element.Meta(trailer, version))
   }
 
+  private[this]
   def elementOrFail(decoded: Decoded): Stream[IO, Element] =
     StreamUtil.attemptStream(s"failed to analyze object: $decoded")(element(decoded))
 
+  /**
+    * @return a [[Pipe]] that semantically analyzes objects
+    */
   def pipe: Pipe[IO, Decoded, Element] =
     _
       .flatMap(elementOrFail)

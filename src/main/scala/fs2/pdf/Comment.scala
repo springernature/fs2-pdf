@@ -6,13 +6,9 @@ import scodec.{Attempt, Codec, DecodeResult, Decoder}
 import scodec.bits.ByteVector
 import scodec.codecs.{optional, provide, recover}
 
-case class Comment(data: ByteVector)
-
+private[pdf]
 object Comment
 {
-  implicit def Codec_Comment: Codec[Comment] =
-    (Text.str("%").withContext("percent") ~> Text.line("content")).withContext("comment").as
-
   val startDecoder: Decoder[Unit] =
     Decoder { bits =>
       val bytes = bits.bytes

@@ -8,6 +8,7 @@ import cats.implicits._
 import scodec.{Attempt, DecodeResult, Err}
 import scodec.bits.BitVector
 
+private[pdf]
 object PredictorTransform
 {
   def param(key: String, default: Int)(params: Prim): Int =
@@ -32,6 +33,7 @@ object PredictorTransform
     Attempt.fromEither(decode(stream, predictor, params).attempt.unsafeRunSync.leftMap(a => Err(a.toString)))
 }
 
+private[pdf]
 object FlateDecode
 {
   import scodec.codecs._

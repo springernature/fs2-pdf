@@ -11,6 +11,7 @@ import scodec.{Attempt, Codec, DecodeResult, Decoder, Err}
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs._
 
+private[pdf]
 object Text
 {
   val latin: Codec[String] =

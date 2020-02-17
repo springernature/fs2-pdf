@@ -6,6 +6,7 @@ import scodec.{Codec, Decoder}
 import scodec.bits.{BitVector, ByteVector, HexStringSyntax}
 import scodec.codecs._
 
+private[pdf]
 object Newline
 {
   val lfBytes: ByteVector =
