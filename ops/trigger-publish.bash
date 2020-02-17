@@ -59,7 +59,6 @@ poll()
     fi
     if read -t 1 -n 1 answer
     then
-      echo ''
       [[ $answer == 'f' ]]
       return $?
     fi
@@ -75,6 +74,7 @@ echo ">>> Publishing with local ref '$ref' at $local_head"
 
 if ready || poll
 then
+  echo ''
   trigger_publish
 else
   echo '>>> Aborted by user.'
