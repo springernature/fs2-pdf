@@ -48,8 +48,8 @@ ready()
 poll()
 {
   local answer
+  echo ">>> Current commit in the pipeline is $(publish_ref)"
   echo ">>> Waiting for the target ref to appear in the publish job's inputs."
-  echo ">>> Current commit is $(publish_ref)"
   echo -n '>>> Press [f] to force trigger the pipeline with an older commit, [a] to abort: '
   while true
   do
