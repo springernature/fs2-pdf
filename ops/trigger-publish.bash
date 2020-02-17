@@ -60,7 +60,7 @@ poll()
     if read -t 1 -n 1 answer
     then
       echo ''
-      [[ $answer != 'f' ]]
+      [[ $answer == 'f' ]]
       return $?
     fi
   done
