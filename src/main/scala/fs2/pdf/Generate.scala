@@ -12,7 +12,7 @@ private[pdf]
 object Generate
 {
   def generateXrefEntry(start: Long)(index: Obj.Index): (Long, Xref.Entry) =
-    (index.number, EncodeMeta.xrefEntry(index.generation, start))
+    (index.number, EncodeMeta.xrefEntry(start, index.generation))
 
   def generateXref(trailer: Prim.Dict, startxref: Long, entries: List[(Long, Xref.Entry)]): Xref = {
     val sorted = entries.sortBy(_._1)

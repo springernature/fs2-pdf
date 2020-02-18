@@ -173,7 +173,7 @@ object Element
       }
   }
 
-  private[this]
+  private[pdf]
   def part: RewriteState[Unit] => Element => (List[Part[Trailer]], RewriteState[Unit]) =
     state => {
       case obj(obj) =>

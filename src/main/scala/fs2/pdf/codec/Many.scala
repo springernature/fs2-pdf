@@ -47,7 +47,7 @@ object Many
   def bracket[A](start: Codec[Unit], end: Codec[Unit])(main: Codec[A]): Codec[List[A]] =
     Codecs.bracket(start, end)(tillDecodes(end)(main))
 
-  private[this]
+  private[pdf]
   def manyDecoder[A](indicator: Codec[Unit], target: Codec[A]): Decoder[List[A]] = {
     def one: Decoder[Option[A]] =
       optional(recover(indicator), target)

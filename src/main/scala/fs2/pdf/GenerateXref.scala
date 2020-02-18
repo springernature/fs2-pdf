@@ -9,7 +9,7 @@ import cats.implicits._
   */
 object GenerateXref
 {
-  private[this]
+  private[pdf]
   def xrefEntries(indexes: NonEmptyList[Obj.Index], sizes: NonEmptyList[Long], initialOffset: Long)
   : NonEmptyList[(Long, Xref.Entry)] =
     indexes
@@ -19,7 +19,7 @@ object GenerateXref
       }
       .sortBy(_._1)
 
-  private[this]
+  private[pdf]
   def padEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[Xref.Entry] =
     entries
       .reduceLeftTo(a => NonEmptyList.one(a)) {
@@ -30,7 +30,7 @@ object GenerateXref
       .reverse
       .map(_._2)
 
-  private[this]
+  private[pdf]
   def deduplicateEntries(entries: NonEmptyList[(Long, Xref.Entry)]): NonEmptyList[(Long, Xref.Entry)] =
     entries
       .reduceLeftTo(NonEmptyList.one(_)) {
@@ -60,7 +60,7 @@ object GenerateXref
     val firstNumber = meta.minimumBy(_.index.number).index.number
     val fromZero = firstNumber == 1L
     val zeroIncrement = if (fromZero) 1 else 0
-    val trailer = EncodeMeta.trailer(trailerDict, 0, None, entries.size + zeroIncrement)
+    val trailer = EncodeMeta.trailer(trailerDict, 0, entries.size + zeroIncrement)
     val withFree =
       if (fromZero) Xref.Entry.freeHead :: entries
       else entries

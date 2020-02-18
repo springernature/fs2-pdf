@@ -53,7 +53,7 @@ object AnalyzeContent
   */
 object Elements
 {
-  private[this]
+  private[pdf]
   def element: Decoded => Attempt[Element] = {
     case Decoded.DataObj(obj) =>
       AnalyzeData(obj.index)(obj.data)
@@ -65,7 +65,7 @@ object Elements
       Attempt.successful(Element.Meta(trailer, version))
   }
 
-  private[this]
+  private[pdf]
   def elementOrFail(decoded: Decoded): Stream[IO, Element] =
     StreamUtil.attemptStream(s"failed to analyze object: $decoded")(element(decoded))
 

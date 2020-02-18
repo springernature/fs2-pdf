@@ -39,7 +39,7 @@ object Text
   def range(low: Int, high: Int): Codec[ByteVector] =
     ranges((low, high))
 
-  private[this]
+  private[pdf]
   def digitsDecoder: Decoder[String] =
     range('0', '9').map(a => new String(a.toArray))
 
@@ -75,7 +75,7 @@ object Text
   def sanitize(data: ByteVector): String =
     sanitizedLatin.decode(data.bits).map(_.value).getOrElse("unparsable")
 
-  private[this]
+  private[pdf]
   val lineDecoder: Decoder[ByteVector] =
     Decoder { bits =>
       val result = bits.bytes.takeWhile(a => !Newline.isNewlineByte(a))
@@ -92,7 +92,7 @@ object Text
   def str(data: String): Codec[Unit] =
     constant(ByteVector(data.getBytes)).withContext(s"constant string `$data`")
 
-  private[this]
+  private[pdf]
   def takeCharsUntilAny(decoder: Codec[String])(chars: List[Char])(bits: BitVector): Attempt[DecodeResult[String]] = {
     val result = bits.bytes.takeWhile(a => !chars.contains(a)).bits
     decoder.decode(result)

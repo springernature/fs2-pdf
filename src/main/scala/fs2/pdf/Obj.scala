@@ -5,6 +5,12 @@ import codec.{Text, Whitespace}
 import scodec.Codec
 import scodec.codecs.liftF2ToNestedTupleF
 
+/**
+  * The data part of an indirect object or a stream object.
+  *
+  * @param index the object's number and generation number
+  * @param data the object's data, a dict or other primitive
+  */
 case class Obj(index: Obj.Index, data: Prim)
 
 object Obj
@@ -13,23 +19,19 @@ extends ObjCodec
   import Text.{ascii, str}
   import Whitespace.space
 
+  /**
+    * The indexing metadata of an object
+    *
+    * @param number a unique number used to reference the object from others and to index the xref table
+    * @param generation indicates that the object replaces a previous, deleted object if nonzero
+    */
   case class Index(number: Long, generation: Int)
 
   object Index
   {
-    def indexRaw: Index => String = {
-      case Index(number, generation) =>
-        s"$number $generation obj\n"
-    }
-
     implicit def Codec_Index: Codec[Index] =
       ((ascii.long <~ space) ~ (ascii.int <~ space <~ str("obj")))
         .xmap(Obj.Index(_, _), a => (a.number, a.generation))
-  }
-
-  def withDict[A]: Obj => A => Option[(A, Prim.Dict)] = {
-    case Obj(_, data @ Prim.Dict(_)) => a => Some((a, data))
-    case _ => _ => None
   }
 
   object tpe

@@ -17,7 +17,7 @@ case class RewriteUpdate[S](state: S, trailer: Trailer)
 
 object Rewrite
 {
-  private[this]
+  private[pdf]
   def emitUpdate[S]: RewriteState[S] => Pull[IO, Part[Trailer], RewriteUpdate[S]] = {
     case RewriteState(state, Some(trailer), _) =>
       Pull.output1(Part.Meta(trailer))
@@ -29,7 +29,7 @@ object Rewrite
       StreamUtil.failPull("no trailer or root in rewrite stream")
   }
 
-  private[this]
+  private[pdf]
   def rewrite[S, A]
   (initial: S)
   (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
@@ -38,7 +38,7 @@ object Rewrite
     StreamUtil.pullState(collect)(in)(RewriteState.cons(initial))
       .flatMap(emitUpdate)
 
-  private[this]
+  private[pdf]
   def rewriteAndUpdate[S, A]
   (initial: S)
   (collect: RewriteState[S] => A => Pull[IO, Part[Trailer], RewriteState[S]])
@@ -57,7 +57,7 @@ object Rewrite
       .through(rewriteAndUpdate(initial)(collect)(update)(_).stream)
       .through(WritePdf.parts)
 
-  private[this]
+  private[pdf]
   def simpleCollect[S, A]
   (collect: RewriteState[S] => A => (List[Part[Trailer]], RewriteState[S]))
   (state: RewriteState[S])

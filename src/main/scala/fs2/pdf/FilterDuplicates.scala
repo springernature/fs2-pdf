@@ -14,7 +14,7 @@ import fs2.{Pipe, Stream}
   */
 object FilterDuplicates
 {
-  private[this]
+  private[pdf]
   case class State(nums: Set[Long], duplicates: Set[Long], update: Boolean)
   {
     def push(num: Long): (Boolean, State) = {
@@ -23,7 +23,7 @@ object FilterDuplicates
     }
   }
 
-  private[this]
+  private[pdf]
   def check(state: State)(num: Long, topLevel: TopLevel): Pull[IO, TopLevel, State] = {
     val (dupe, newState) = state.push(num)
     Pull.output1(topLevel)
@@ -31,7 +31,7 @@ object FilterDuplicates
       .as(newState)
   }
 
-  private[this]
+  private[pdf]
   def filter(state: State): TopLevel => Pull[IO, TopLevel, State] = {
     case topLevel @ TopLevel.IndirectObj(IndirectObj(Obj(Obj.Index(num, _), _), _)) =>
       check(state)(num, topLevel)
@@ -43,7 +43,7 @@ object FilterDuplicates
       Pull.output1(topLevel).as(state)
   }
 
-  private[this]
+  private[pdf]
   def pullFilter(log: Log)(in: Stream[IO, TopLevel]): Pull[IO, TopLevel, Unit] =
     StreamUtil.pullState(filter)(in)(State(Set.empty, Set.empty, false))
       .flatMap {

@@ -6,6 +6,26 @@ import codec.{Codecs, Newline, Text, Whitespace}
 import scodec._
 import scodec.bits._
 
+/**
+  * An indirect object is the main syntactic element at the top level of a PDF file.
+  *
+  * Their shape is:
+  * {{{
+  * 5 0 object
+  * <<
+  * /Key1 /Value1
+  * /Key2 [1 2 3]
+  * stream
+  * <rendering instructions, image data or other binary data>
+  * endstream
+  * endobj
+  * }}}
+  *
+  * where the 'stream' part is optional
+  *
+  * @param obj the index and data part
+  * @param stream the optional content stream part
+  */
 case class IndirectObj(obj: Obj, stream: Option[BitVector])
 
 object IndirectObj
@@ -14,11 +34,13 @@ extends IndirectObjCodec
   def nostream(number: Long, data: Prim): IndirectObj =
     IndirectObj(Obj(Obj.Index(number, 0), data), None)
 
+  private[pdf]
   def addLength(stream: BitVector): Prim => Prim = {
     case Prim.Dict(data) => Prim.Dict(data.updated("Length", Prim.Number(stream.bytes.size)))
     case a => a
   }
 
+  private[pdf]
   def ensureLength(stream: BitVector)(data: Prim): Prim =
     Prim.tryDict("Length")(data).as(data).getOrElse(addLength(stream)(data))
 
@@ -27,12 +49,24 @@ extends IndirectObjCodec
 
   object number
   {
+    /**
+      * pattern-match the object number of an [[IndirectObj]]
+      *
+      * @param obj
+      * @return the object number
+      */
     def unapply(obj: IndirectObj): Option[Long] =
       Some(obj.obj.index.number)
   }
 
   object dict
   {
+    /**
+      * pattern-match if the [[Prim]] in the data part is a [[Prim.Dict]]
+      *
+      * @param obj
+      * @return the object number and a [[Prim.Dict]]
+      */
     def unapply(obj: IndirectObj): Option[(Long, Prim.Dict)] =
       obj match {
         case IndirectObj(Obj.dict(number, dict), _) =>
@@ -121,10 +155,23 @@ trait IndirectObjCodec
       .as[IndirectObj]
 }
 
+/**
+  * Helper type for encoding the object and its xref entry
+  *
+  * @param xref the metadata relevant for the xref entry
+  * @param bytes the byte-encoded [[IndirectObj]]
+  */
 case class EncodedObj(xref: XrefObjMeta, bytes: ByteVector)
 
 object EncodedObj
 {
+  /**
+    * Encode an [[IndirectObj]] and package it with the xref metadata
+    *
+    * @param obj
+    * @return an encoded object with its metadata
+    */
   def indirect(obj: IndirectObj): Attempt[EncodedObj] =
-    Codecs.encodeBytes(obj).map(bytes => EncodedObj(XrefObjMeta(obj.obj.index, bytes.size), bytes))
+    Codecs.encodeBytes(obj)
+      .map(bytes => EncodedObj(XrefObjMeta(obj.obj.index, bytes.size), bytes))
 }

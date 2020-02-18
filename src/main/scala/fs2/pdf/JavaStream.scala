@@ -6,6 +6,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 import cats.effect.IO
 import cats.implicits._
 
+private[pdf]
 object JavaStream
 {
   def baos: ByteArrayOutputStream =
