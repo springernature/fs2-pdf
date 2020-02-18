@@ -48,7 +48,7 @@ object Content
     Prim.Dict.number("Length")(dict).map(_.toLong)
 
   val endstream: ByteVector =
-    ByteVector("endstream".getBytes)
+    Scodec.stringBytes("endstream")
 
   def endstreamIndex(bytes: ByteVector): Attempt[Long] =
     bytes.indexOfSlice(endstream) match {

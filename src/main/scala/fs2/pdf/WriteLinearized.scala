@@ -4,7 +4,8 @@ package pdf
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
-import fs2.{Pipe, Pull, Stream}
+import codec.Codecs
+import fs2.{Pipe, Stream}
 import scodec.Attempt
 import scodec.bits.ByteVector
 import scodec.interop.cats.AttemptMonadErrorInstance
@@ -25,63 +26,6 @@ object WriteLinearized
     case Part.Version(_) =>
       Scodec.fail("Part.Version not at the head of stream")
   }
-
-  val xrefStatic: String =
-    """xref
-    |
-    |trailer
-    |
-    |startxref
-    |0
-    |%%EOF
-    |""".stripMargin
-
-  def calculateXrefLength(entries: Int, totalCount: Int, trailer: Prim.Dict): Attempt[Long] =
-    Prim.Codec_Prim.encode(trailer)
-      .map { encTrailer =>
-        encTrailer.bytes.size +
-        entries * 20 +
-        entries.toString.size +
-        (totalCount - entries + 1).toString.size +
-        1 +
-        xrefStatic.size
-      }
-
-  def encodeFirstPageParts[A]
-  (firstPage: NonEmptyList[Part[A]], count: Int, trailer: Prim.Dict)
-  : Attempt[(NonEmptyList[XrefObjMeta], NonEmptyList[ByteVector], Trailer)] =
-    firstPage.traverse(encode)
-      .map { encoded =>
-        (
-          encoded.map(_.xref),
-          encoded.map(_.bytes),
-          Trailer(count, trailer ++ Prim.dict("Size" -> Prim.num(count)), None),
-        )
-      }
-
-  case class FirstPage(xref: ByteVector, xrefLength: Long, data: NonEmptyList[ByteVector], firstObjNumber: Long)
-
-  val linearizationSize: Long =
-    100
-
-  def encodeFirstPage[A]
-  (trailerData: Prim.Dict, totalCount: Int)
-  (headerSize: Long)
-  (firstPageChunk: Chunk[Part[A]])
-  : Attempt[FirstPage] =
-    for {
-      firstPage <- Scodec.attemptNel("first page objects")(firstPageChunk)
-      firstNumber <- objectNumber(firstPage.head)
-      xrefOffset = headerSize + linearizationSize
-      (entries, data, trailer) <- encodeFirstPageParts(firstPage, totalCount, trailerData)
-      xrefLength <- calculateXrefLength(entries.size + 1, totalCount, trailer.data)
-      encXref <- WritePdf.encodeXref(entries, trailer, xrefOffset + xrefLength)
-    } yield FirstPage(
-      encXref,
-      xrefOffset + data.map(_.size).fold + xrefLength,
-      data,
-      firstNumber,
-    )
 
   case class LinearizationParams(
     fileSize: Long,
@@ -114,14 +58,6 @@ object WriteLinearized
       )
   }
 
-  def linearizationObj(number: Long, data: Prim): IndirectObj =
-    IndirectObj(Obj(Obj.Index(number, 0), data), None)
-
-  def createLinearizationPull(number: Long, params: LinearizationParams): Pull[IO, Nothing, ByteVector] =
-    StreamUtil.attemptPull("create linearization object")(
-      IndirectObj.Codec_IndirectObj.encode(linearizationObj(number, linearizationDict(params))).map(_.bytes)
-    )
-
   def linParams(totalCount: Int, fileSize: Long): LinearizationParams =
     LinearizationParams(
       fileSize,
@@ -133,55 +69,97 @@ object WriteLinearized
       0,
     )
 
-  case class FirstPageOffsets(offset: Long, startxref: Long)
+  val tera: Long =
+    1000000000
 
-  def outputFirstPage
-  (trailer: Prim.Dict, totalCount: Int, headerSize: Long, fileSize: Long)
-  (firstPage: Chunk[Part[Trailer]])
-  : Pull[IO, ByteVector, FirstPageOffsets] = {
-    val attempt = encodeFirstPage(trailer, totalCount)(headerSize)(firstPage)
-    StreamUtil.attemptPullWith("encoding first page")(attempt) {
-      case FirstPage(xref, xrefLength, data, firstNumber) =>
-        for {
-          _ <- createLinearizationPull(firstNumber - 1, linParams(totalCount, fileSize)).flatMap(Pull.output1)
-          _ <- Pull.output1(xref)
-          _ <- Pull.output(Chunk.seq(data.toList))
-        } yield FirstPageOffsets(headerSize + data.map(_.size).fold + xrefLength, headerSize + linearizationSize)
-    }
+  def maxLinearizationObject: String =
+    s"""10000 0 obj
+    |<<
+    |/Linearized 1.0
+    |/L $tera
+    |/H [$tera $tera]
+    |/O 10000
+    |/E $tera
+    |/N $tera
+    |/T $tera
+    |>>
+    |endobj
+    |""".stripMargin
+
+  def pad(total: Int)(number: Long): String = {
+    val numberString = number.toString
+    s"${new String(Array.fill(total - numberString.size)(' '))}$numberString"
   }
 
-  def pullFirstPage
-  (trailerData: Prim.Dict, count: Int, totalCount: Int, headerSize: Long, fileSize: Long)
-  (parts: Stream[IO, Part[Trailer]])
-  : Pull[IO, ByteVector, Unit] =
-    parts
-      .pull
-      .unconsN(count, false)
-      .flatMap {
-        case Some((firstPage, tail)) =>
-          val finalTrailer = Trailer(totalCount - count, trailerData, None)
-          outputFirstPage(trailerData, totalCount, headerSize, fileSize)(firstPage)
-            .flatMap {
-              case FirstPageOffsets(offset, _) =>
-                WritePdf.pullParts(tail ++ Stream(Part.Meta(finalTrailer)))(offset)
-              }
-            .void
-        case None =>
-          StreamUtil.failPull("no objects in parts stream")
-      }
+  def padTera: Long => String = pad(10)
 
-  def pipe
-  (trailer: Prim.Dict, firstPageCount: Int, totalCount: Int, fileSize: Long)
-  : Pipe[IO, Part[Trailer], ByteVector] =
-    WritePdf.consumeVersion(_)
-      .flatMap {
-        case (offset, tail) =>
-          pullFirstPage(trailer, firstPageCount, totalCount, offset, fileSize)(tail)
-      }
-      .stream
+  def encodeLinearizationParams(number: Long): LinearizationParams => String = {
+    case LinearizationParams(fileSize, firstNumber, hintOffset, hintLength, firstEnd, count, xref) =>
+      s"""$number 0 obj
+      |<<
+      |/Linearized 1.0
+      |/L ${padTera(fileSize)}
+      |/H [${padTera(hintOffset)} ${padTera(hintLength)}]
+      |/O ${pad(5)(firstNumber)}
+      |/E ${padTera(firstEnd)}
+      |/N ${padTera(count)}
+      |/T ${padTera(xref)}
+      |>>
+      |endobj
+      |""".stripMargin
+  }
+
+  def linearizationParams(offset: Long, firstPage: NonEmptyList[ByteVector], rest: NonEmptyList[ByteVector])
+  : Attempt[LinearizationParams] =
+    ???
+
+  def encodeFirstPageXref(entries: NonEmptyList[XrefObjMeta], catalog: Long, root: Long): String =
+    s"""xref
+    |
+    |""".stripMargin
+
+  def encodeMainXref(offset: Long): Attempt[ByteVector] =
+    ???
+
+  val xrefStatic: String =
+    s"""xref
+    |10000 10000
+    |trailer
+    |<<
+    |/Root 10000 0 R
+    |/Catalog 10000 0 R
+    |/Size 10000
+    |>>
+    |startxref
+    |$tera
+    |%%EOF
+    |""".stripMargin
+
+  def xrefSize(entries: Long): Long =
+    xrefStatic.size + entries * 20
+
+  def encodeLinearized(pdf: LinearizedPdf): Attempt[NonEmptyList[ByteVector]] =
+    for {
+      version <- Codecs.encodeBytes(Version.default)
+      fp <- (pdf.firstPage.objs).traverse(Codecs.encodeBytes[IndirectObj])
+      rest <- (pdf.rest).traverse(Codecs.encodeBytes[IndirectObj])
+      fpSize = fp.map(_.size).toList.sum
+      restSize = rest.map(_.size).toList.sum
+      fpXrefSize = xrefSize(fp.size)
+      restXrefSize = xrefSize(rest.size + 1)
+      restOffset = version.size + maxLinearizationObject.size + fpXrefSize + fpSize
+      restXrefOffset = restOffset + restSize
+      fileSize = restXrefOffset + restXrefSize
+      fpXref <- Scodec.stringBytes(encodeFirstPageXref(fileSize, restXrefOffset))
+      mainXref <- encodeMainXref(version.size + fpXref.size)
+      linDict <- linearizationParams(version.size, fp, rest)
+        .map(p => Scodec.stringBytes(encodeLinearizationParams(pdf.firstPage.objs.head.obj.index.number - 1)(p)))
+    } yield version :: linDict :: fpXref :: fp ::: (mainXref :: rest)
 
   def write(pdf: LinearizedPdf): Stream[IO, ByteVector] =
-    ???
+    StreamUtil.attemptStream("encoding linearized objects")(encodeLinearized(pdf))
+      .map(_.toList)
+      .flatMap(Stream.emits(_))
 
   def fresh: Pipe[IO, IndirectObj, ByteVector] =
     in =>

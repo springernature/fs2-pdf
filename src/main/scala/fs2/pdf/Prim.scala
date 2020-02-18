@@ -309,10 +309,10 @@ extends PrimCodec
     Prim.Number(num)
 
   def str(s: String): Prim.Str =
-    Prim.Str(ByteVector(s.getBytes))
+    Prim.Str(Scodec.stringBytes(s))
 
   def hexStr(s: String): Prim.HexStr =
-    Prim.HexStr(ByteVector(s.getBytes))
+    Prim.HexStr(Scodec.stringBytes(s))
 
   def tryDict(key: String): Prim => Option[Prim] = {
     case Dict(data) => data.lift(key)
@@ -340,8 +340,8 @@ trait PrimCodec
       .xmap(Prim.Ref(_, _), { case Prim.Ref(n, g) => (n, g) })
 
   def encodeBool: Bool => Attempt[BitVector] = {
-    case Bool(true) => Attempt.successful(BitVector("true".getBytes))
-    case Bool(false) => Attempt.successful(BitVector("false".getBytes))
+    case Bool(true) => Attempt.successful(Scodec.stringBits("true"))
+    case Bool(false) => Attempt.successful(Scodec.stringBits("false"))
   }
 
   def decodeBool: Decoder[Bool] =

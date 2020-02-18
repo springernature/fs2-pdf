@@ -5,7 +5,7 @@ import cats.implicits._
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 import scodec.{Codec, Decoder}
-import scodec.bits.{BitVector, ByteVector}
+import scodec.bits.BitVector
 
 class PrimTest
 extends Specification
@@ -16,14 +16,14 @@ extends Specification
     Decoder[A].decode(in).toEither.bimap(_.toString, _.value)
 
   def testDecode[A: Decoder](raw: String, data: A): MatchResult[Any] =
-    decode[A](BitVector(raw.getBytes))
+    decode[A](Scodec.stringBits(raw))
       .must(beRight(data))
 
   def testAs[A](codec: Codec[A])(raw: String, data: A, encoded: String): MatchResult[Any] =
     codec
       .encode(data)
       .toEither
-      .flatMap(enc => enc.decodeUtf8.leftMap(_.toString).product(decode(BitVector(raw.getBytes))(codec)))
+      .flatMap(enc => enc.decodeUtf8.leftMap(_.toString).product(decode(Scodec.stringBits(raw))(codec)))
       .must(beRight((encoded, data)))
 
   def testWith[A](codec: Codec[A])(raw: String, data: A): MatchResult[Any] =
@@ -122,13 +122,13 @@ extends Specification
     "hello \\) parens"
 
   "string with escaped parens" >>
-  testWith(Prim.Codec_Str)(s"($escaped)", Str(ByteVector(escaped.getBytes)))
+  testWith(Prim.Codec_Str)(s"($escaped)", Str(Scodec.stringBytes(escaped)))
 
   val nested: String =
     "with (nested (parens)) here"
 
   "nested" >>
-  test(s"($nested)", Str(ByteVector(nested.getBytes)))
+  test(s"($nested)", Str(Scodec.stringBytes(nested)))
 
   val obj: String =
     s"""10 0 obj

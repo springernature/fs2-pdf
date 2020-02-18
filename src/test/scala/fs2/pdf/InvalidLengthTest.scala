@@ -23,7 +23,7 @@ extends Specification
     |endobj""".stripMargin
 
   val bits: BitVector =
-    BitVector(data.getBytes)
+    Scodec.stringBits(data)
 
   val dict: Prim.Dict =
     Prim.dict(

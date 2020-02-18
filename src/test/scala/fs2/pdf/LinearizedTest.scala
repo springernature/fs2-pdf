@@ -13,8 +13,11 @@ extends Specification
       "Type" -> Prim.Name("Page"),
       "Contents" -> Prim.refNum(content),
       "MediaBox" -> Prim.Array.nums(0, 0, 600, 800),
-      "Parent" -> Prim.refNum(1),
+      "Parent" -> Prim.refNum(3),
     ))
+
+  def catalog: IndirectObj =
+    IndirectObj.nostream(2, Prim.dict("Type" -> Prim.Name("Catalog"), "Pages" -> Prim.Ref(2, 0)))
 
   def pages: Prim.Dict =
     Prim.dict(
@@ -28,10 +31,11 @@ extends Specification
 
   val objects: Stream[IO, IndirectObj] =
     Stream(
-      IndirectObj.nostream(3, pages),
-      page(4, 3),
-      content,
       page(1, 5),
+      catalog,
+      IndirectObj.nostream(3, pages),
+      page(4, 5),
+      content,
     )
 
   val linearization: Prim.Dict =

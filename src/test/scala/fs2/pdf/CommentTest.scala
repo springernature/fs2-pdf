@@ -22,7 +22,7 @@ extends Specification
     |""".stripMargin
 
   val bits: BitVector =
-    BitVector(data.getBytes)
+    Scodec.stringBits(data)
 
   val dict: Prim.Dict =
     Prim.dict(
@@ -39,7 +39,7 @@ extends Specification
     .must(beRight(DecodeResult(target, BitVector.empty)))
 
   def multiComment(count: Int): BitVector =
-    BitVector(List.fill(count)("% commment\n").mkString.getBytes)
+    Scodec.stringBits(List.fill(count)("% commment\n").mkString)
 
   "stack safety" >>
   Comment.many.decode(multiComment(3000))

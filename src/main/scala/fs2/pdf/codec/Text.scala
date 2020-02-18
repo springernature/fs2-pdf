@@ -90,7 +90,7 @@ object Text
     Codecs.byte(data.toByte)
 
   def str(data: String): Codec[Unit] =
-    constant(ByteVector(data.getBytes)).withContext(s"constant string `$data`")
+    constant(Scodec.stringBytes(data)).withContext(s"constant string `$data`")
 
   private[pdf]
   def takeCharsUntilAny(decoder: Codec[String])(chars: List[Char])(bits: BitVector): Attempt[DecodeResult[String]] = {
@@ -106,6 +106,6 @@ object Text
     bytes(count)
       .exmap(
         a => Attempt.fromEither(a.decodeUtf8.leftMap(a => Err(a.toString))),
-        a => Attempt.successful(ByteVector(a.getBytes)),
+        a => Attempt.successful(Scodec.stringBytes(a)),
       )
 }

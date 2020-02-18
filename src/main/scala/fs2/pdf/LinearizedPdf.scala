@@ -1,16 +1,20 @@
 package fs2
 package pdf
 
-import cats.data.NonEmptyList
+import cats.Eval
+import cats.data.{EitherT, NonEmptyList}
 import cats.implicits._
 
-case class LinearizedPdf(objs: NonEmptyList[IndirectObj], trailer: Trailer, root: Prim.Ref)
+case class LinearizedPdf(
+  firstPage: LinearizedPdf.FirstPage,
+  rest: NonEmptyList[IndirectObj],
+)
 
 object LinearizedPdf
 {
   case class State()
 
-  case class FirstPage(root: Pages, objs: List[IndirectObj])
+  case class FirstPage(root: Pages, catalog: IndirectObj, objs: NonEmptyList[IndirectObj])
 
   def objsByNumber(objs: List[IndirectObj]): Map[Long, IndirectObj] =
     objs.map(a => (a.obj.index.number, a)).toMap
@@ -31,18 +35,27 @@ object LinearizedPdf
       }
   }
 
-  def collectFirstPageObjects(byNumber: Map[Long, IndirectObj], root: Prim): Either[String, List[IndirectObj]] = {
-    def spin: Prim => Either[String, List[IndirectObj]] = {
-      case ref @ Prim.Ref(number, _) =>
-        Either.fromOption(byNumber.lift(number), s"invalid ref to $ref").map(List(_))
+  def collectFirstPageObjects(byNumber: Map[Long, IndirectObj], first: Page)
+  : Either[String, (NonEmptyList[IndirectObj])] = {
+    def spin(seen: Set[Long]): Prim => EitherT[Eval, String, Set[Long]] = {
+      case ref @ Prim.Ref(number, _) if !seen.contains(number) =>
+        EitherT.fromOption[Eval](byNumber.lift(number), s"invalid ref to $ref")
+          .flatMap { referenced =>
+            spin(seen + number)(referenced.obj.data)
+          }
       case Prim.Dict(data) =>
-        data.values.toList.flatTraverse(spin)
+        data.filterNot(_._1 == "Parent").values.toList.foldM(seen)((z, a) => spin(z)(a))
       case Prim.Array(elems) =>
-        elems.flatTraverse(spin)
+        elems.foldM(seen)((z, a) => spin(z)(a))
       case _ =>
-        Right(Nil)
+        EitherT.pure(seen)
     }
-    spin(root)
+    spin(Set(first.index.number))(first.data)
+      .value
+      .value
+      .flatMap(_.toList.traverse(num => Either.fromOption(byNumber.lift(num), s"invalid ref to $num")))
+      .map(NonEmptyList.fromList(_))
+      .flatMap(Either.fromOption(_, "no objects for first page"))
   }
 
   def renumberPrim(numbers: Map[Long, Int]): Prim => Either[String, Prim] = {
@@ -65,32 +78,46 @@ object LinearizedPdf
       } yield IndirectObj(Obj(Obj.Index(newNumber, 0), newData), stream)
   }
 
-  def renumberObjs(fp: List[IndirectObj], rest: List[IndirectObj])
-  : Either[String, (List[IndirectObj], List[IndirectObj])] = {
+  def findCatalog(objs: List[IndirectObj]): Either[String, IndirectObj] =
+    Either.fromOption(
+      objs.collectFirst { case obj @ IndirectObj(Obj.tpe("Catalog", _), None) => obj },
+      "no catalog in PDF",
+    )
+
+  def renumberObjs(fp: NonEmptyList[IndirectObj], rest: NonEmptyList[IndirectObj])
+  : Either[String, (NonEmptyList[IndirectObj], NonEmptyList[IndirectObj])] = {
     val numbers =
-      (rest ++ fp)
+      (rest.toList ++ (IndirectObj.nostream(-1, Prim.Null) :: fp.toList))
         .zipWithIndex
         .map {
           case (IndirectObj(Obj(Obj.Index(number, _), _), _), index) =>
-            (number, index)
+            (number, index + 1)
         }
         .toMap
     (fp.traverse(renumberObj(numbers)), rest.traverse(renumberObj(numbers)))
       .mapN((_, _))
   }
 
-  def firstPage(objs: List[IndirectObj]): Either[String, (FirstPage, List[IndirectObj])] = {
+  def restObjs(objs: List[IndirectObj], fpObjs: List[IndirectObj]): Either[String, NonEmptyList[IndirectObj]] =
+    Either.fromOption(
+      NonEmptyList.fromList((Set.from(objs) -- Set.from(fpObjs)).toList),
+      "no objects for rest of document",
+    )
+
+  def firstPage(objs: List[IndirectObj]): Either[String, (FirstPage, NonEmptyList[IndirectObj])] = {
     val byNumber = objsByNumber(objs)
     for {
       root <- Either.fromOption(objs.collectFirst(rootDir), "no root dir")
       first <- resolveFirst(byNumber, root)
-      rawFpObjs <- collectFirstPageObjects(byNumber, first.data)
-      (fpObjs, rest) <- renumberObjs(rawFpObjs, (Set.from(objs) -- Set.from(rawFpObjs)).toList)
-    } yield (FirstPage(root, fpObjs), rest)
+      rawFpObjs <- collectFirstPageObjects(byNumber, first)
+      catalog <- findCatalog(objs)
+      rawRest <- restObjs(objs, rawFpObjs.toList)
+      (fpObjs, rest) <- renumberObjs(rawFpObjs, rawRest)
+    } yield (FirstPage(root, catalog, fpObjs), rest)
   }
 
   def apply(objs: List[IndirectObj]): Either[String, LinearizedPdf] =
     for {
       (fp, rest) <- firstPage(objs)
-    } yield ???
+    } yield LinearizedPdf(fp, rest)
 }

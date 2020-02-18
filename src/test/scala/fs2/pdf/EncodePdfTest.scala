@@ -53,12 +53,12 @@ extends Specification
   ))
 
   def contentStream: ByteVector =
-    ByteVector(
+    Scodec.stringBytes(
       """BT
       |  /F1 24 Tf
       |  50 750 Td
       |  (Hello World) Tj
-      |ET""".stripMargin.getBytes
+      |ET""".stripMargin
     )
 
   def contentObj: IndirectObj =
@@ -112,7 +112,7 @@ extends Specification
     )
 
   def id: Prim =
-    Prim.HexStr(ByteVector("FF1FE073E0365E226E145B0CC9CB0758".getBytes))
+    Prim.HexStr(Scodec.stringBytes("FF1FE073E0365E226E145B0CC9CB0758"))
 
   def trailer: Prim.Dict =
     Prim.dict(
