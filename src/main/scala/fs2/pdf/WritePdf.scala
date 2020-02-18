@@ -37,8 +37,6 @@ object WritePdf
         case EncodedObj(entry, bytes) =>
           Pull.output1(bytes).as(state.entry(entry))
       }
-    case Part.Unparsable(index, data) =>
-      Pull.output1(data).as(state.entry(XrefObjMeta(index, data.size)))
     case Part.Meta(trailer) =>
       Pull.pure(state.copy(trailer = Some(trailer)))
     case Part.Version(_) =>

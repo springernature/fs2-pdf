@@ -4,12 +4,20 @@ package pdf
 import codec.{Many, Text, Whitespace}
 import scodec.Codec
 
+/**
+  * An object stream is an indirect object with the '/Type' field set to '/ObjStm'.
+  *
+  * It contains multiple compressed data objects (without streams).
+  *
+  * @param objs the data objects contained in the stream
+  */
 case class ObjectStream(objs: List[Obj])
 
 object ObjectStream
 extends ObjectStreamCodec
 
-private[pdf] trait ObjectStreamCodec
+private[pdf]
+trait ObjectStreamCodec
 {
   import scodec.codecs.{listOfN, provide}
 

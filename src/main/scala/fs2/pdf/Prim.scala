@@ -11,32 +11,66 @@ import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs.liftF2ToNestedTupleF
 import scodec.interop.cats.AttemptMonadErrorInstance
 
+/**
+  * Algebra for PDF primitives.
+  *
+  * Each object contains one primitive, most frequently a [[Dict]].
+  */
 sealed trait Prim
 
 object Prim
 extends PrimCodec
 {
+  /**
+    * The literal string 'null'.
+    */
   case object Null
   extends Prim
 
+  /**
+   * A reference to another object, encoded as 'number generation R' (like '5 0 R')
+    *
+    * @param number the unique object identifier
+    * @param generation the indicator for replacements for deleted objects
+    */
   case class Ref(number: Long, generation: Int)
   extends Prim
 
+  /**
+    * A regular boolean, either of the literal strings 'true' and 'false'.
+    */
   case class Bool(value: Boolean)
   extends Prim
 
+  /**
+    * A number, either floating point or integer.
+    */
   case class Number(data: BigDecimal)
   extends Prim
 
+  /**
+    * A name is encoded with a leading solidus '/', like '/Type'.
+    * It is used for dictionary keys and identifiers.
+    */
   case class Name(data: String)
   extends Prim
 
+  /**
+    * A string is encoded literally and wrapped with parentheses, like '(a string)'.
+    */
   case class Str(data: ByteVector)
   extends Prim
 
+  /**
+    * A hexadecimal string is wrapped with angular brackets, like '<4e8a1db>'.
+    */
   case class HexStr(data: ByteVector)
   extends Prim
 
+  /**
+    * An array is enclosed in square brackets and can contain a heterogeneous combination of other primitives,
+    * separated by spaces, like '[(hello) 1 0 R << /Key /Value >> 5.4 null false]'.
+    */
   case class Array(data: List[Prim])
   extends Prim
 

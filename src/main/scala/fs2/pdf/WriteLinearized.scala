@@ -13,7 +13,6 @@ object WriteLinearized
 {
   def objectNumber[A]: Part[A] => Attempt[Long] = {
     case Part.Obj(IndirectObj(Obj(Obj.Index(n, _), _), _)) => Attempt.successful(n)
-    case Part.Unparsable(Obj.Index(n, _), _) => Attempt.successful(n)
     case _ => Scodec.fail("first part is not an object")
   }
 
@@ -21,8 +20,6 @@ object WriteLinearized
   : Part[A] => Attempt[EncodedObj] = {
     case Part.Obj(obj) =>
       EncodedObj.indirect(obj)
-    case Part.Unparsable(index, data) =>
-      Attempt.successful(EncodedObj(XrefObjMeta(index, data.size), data))
     case Part.Meta(_) =>
       Scodec.fail("trailer in first page data")
     case Part.Version(_) =>

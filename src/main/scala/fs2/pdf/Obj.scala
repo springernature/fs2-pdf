@@ -36,18 +36,36 @@ extends ObjCodec
 
   object tpe
   {
+    /**
+      * Pattern-match if the data primitive is a dict, and extract its '/Type' field
+      *
+      * @param obj
+      * @return the object type and its data dict
+      */
     def unapply(obj: Obj): Option[(String, Prim.Dict)] =
       Prim.tpe.unapply(obj.data)
   }
 
   object subtype
   {
+    /**
+      * Pattern-match if the data primitive is a dict, and extract its '/Subtype' field
+      *
+      * @param obj
+      * @return the object subtype and its data dict
+      */
     def unapply(obj: Obj): Option[(String, Prim.Dict)] =
       Prim.subtype.unapply(obj.data)
   }
 
   object dict
   {
+    /**
+      * Pattern-match if the data primitive is a dict, and extract its index number
+      *
+      * @param obj
+      * @return the object number and its data dict
+      */
     def unapply(obj: Obj): Option[(Long, Prim.Dict)] =
       obj match {
         case Obj(Obj.Index(number, _), dict @ Prim.Dict(_)) =>

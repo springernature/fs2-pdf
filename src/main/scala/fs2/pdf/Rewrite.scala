@@ -15,6 +15,10 @@ object RewriteState
 
 case class RewriteUpdate[S](state: S, trailer: Trailer)
 
+/**
+  * A utility for transforming a stream of indirect objects into [[Part]]s encodable with [[WritePdf]] by calling a
+  * stateful function for each element and finalizing with another function consuming the collected state.
+  */
 object Rewrite
 {
   private[pdf]
