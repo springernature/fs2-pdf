@@ -128,7 +128,7 @@ trait XrefCodec
       crlf.withContext("end newline"),
     )
 
-  def entry: Codec[Xref.Entry] =
+  implicit def entry: Codec[Xref.Entry] =
     (index :: entryType <~ twoByteNewline).as[Xref.Entry]
 
   def range: Codec[(Long, Int)] =

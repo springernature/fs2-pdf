@@ -68,6 +68,9 @@ object Pages
     def unapply(obj: IndirectObj): Option[Pages] =
       fromData(obj.obj.index)(obj.obj.data).toOption
   }
+
+  def indirectObj(pages: Pages): IndirectObj =
+    IndirectObj(Obj(pages.index, pages.data), None)
 }
 
 /**

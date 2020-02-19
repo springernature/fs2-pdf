@@ -7,14 +7,14 @@ import cats.implicits._
 
 case class LinearizedPdf(
   firstPage: LinearizedPdf.FirstPage,
-  rest: NonEmptyList[IndirectObj],
+  main: NonEmptyList[IndirectObj],
 )
 
 object LinearizedPdf
 {
   case class State()
 
-  case class FirstPage(root: Pages, catalog: IndirectObj, objs: NonEmptyList[IndirectObj])
+  case class FirstPage(root: Pages, firstNumber: Long, catalog: Long, objs: NonEmptyList[IndirectObj])
 
   def objsByNumber(objs: List[IndirectObj]): Map[Long, IndirectObj] =
     objs.map(a => (a.obj.index.number, a)).toMap
@@ -84,24 +84,29 @@ object LinearizedPdf
       "no catalog in PDF",
     )
 
-  def renumberObjs(fp: NonEmptyList[IndirectObj], rest: NonEmptyList[IndirectObj])
-  : Either[String, (NonEmptyList[IndirectObj], NonEmptyList[IndirectObj])] = {
+  def renumberObjs(firstPage: Long, catalog: Long, fp: NonEmptyList[IndirectObj], main: NonEmptyList[IndirectObj])
+  : Either[String, (Long, Long, NonEmptyList[IndirectObj], NonEmptyList[IndirectObj])] = {
     val numbers =
-      (rest.toList ++ (IndirectObj.nostream(-1, Prim.Null) :: fp.toList))
+      (main.toList ++ (IndirectObj.nostream(-1, Prim.Null) :: fp.toList))
         .zipWithIndex
         .map {
           case (IndirectObj(Obj(Obj.Index(number, _), _), _), index) =>
             (number, index + 1)
         }
         .toMap
-    (fp.traverse(renumberObj(numbers)), rest.traverse(renumberObj(numbers)))
-      .mapN((_, _))
+    (
+      Either.fromOption(numbers.lift(firstPage), "first page number not in numbers dict"),
+      Either.fromOption(numbers.lift(catalog), "catalog number not in numbers dict"),
+      fp.traverse(renumberObj(numbers)),
+      main.traverse(renumberObj(numbers)),
+    )
+      .mapN((_, _, _, _))
   }
 
-  def restObjs(objs: List[IndirectObj], fpObjs: List[IndirectObj]): Either[String, NonEmptyList[IndirectObj]] =
+  def mainObjs(objs: List[IndirectObj], fpObjs: List[IndirectObj]): Either[String, NonEmptyList[IndirectObj]] =
     Either.fromOption(
       NonEmptyList.fromList((Set.from(objs) -- Set.from(fpObjs)).toList),
-      "no objects for rest of document",
+      "no objects for main part of document",
     )
 
   def firstPage(objs: List[IndirectObj]): Either[String, (FirstPage, NonEmptyList[IndirectObj])] = {
@@ -109,15 +114,19 @@ object LinearizedPdf
     for {
       root <- Either.fromOption(objs.collectFirst(rootDir), "no root dir")
       first <- resolveFirst(byNumber, root)
-      rawFpObjs <- collectFirstPageObjects(byNumber, first)
+      fpRefObjs <- collectFirstPageObjects(byNumber, first)
       catalog <- findCatalog(objs)
-      rawRest <- restObjs(objs, rawFpObjs.toList)
-      (fpObjs, rest) <- renumberObjs(rawFpObjs, rawRest)
-    } yield (FirstPage(root, catalog, fpObjs), rest)
+      fpObjs = Pages.indirectObj(root) :: catalog :: fpRefObjs
+      rawMain <- mainObjs(objs, fpObjs.toList)
+      (fpNumber, catalogNumber, fpObjs, main) <- renumberObjs(first.index.number, catalog.obj.index.number, fpObjs, rawMain)
+    } yield {
+      println(fpObjs)
+      (FirstPage(root, fpNumber, catalogNumber, fpObjs), main)
+    }
   }
 
   def apply(objs: List[IndirectObj]): Either[String, LinearizedPdf] =
     for {
-      (fp, rest) <- firstPage(objs)
-    } yield LinearizedPdf(fp, rest)
+      (fp, main) <- firstPage(objs)
+    } yield LinearizedPdf(fp, main)
 }

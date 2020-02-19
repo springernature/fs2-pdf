@@ -3,7 +3,6 @@ package pdf
 
 import cats.effect.IO
 import org.specs2.mutable.Specification
-import scodec.bits.BitVector
 
 class LinearizedTest
 extends Specification
@@ -17,23 +16,34 @@ extends Specification
     ))
 
   def catalog: IndirectObj =
-    IndirectObj.nostream(2, Prim.dict("Type" -> Prim.Name("Catalog"), "Pages" -> Prim.Ref(2, 0)))
+    IndirectObj.nostream(2, Prim.dict("Type" -> Prim.Name("Catalog"), "Pages" -> Prim.Ref(3, 0)))
 
-  def pages: Prim.Dict =
-    Prim.dict(
+  def pages: IndirectObj =
+    IndirectObj.nostream(3, Prim.dict(
       "Type" -> Prim.Name("Pages"),
       "Count" -> Prim.num(2),
       "Kids" -> Prim.Array.refs(4, 1),
-    )
+    ))
+
+  def contentStream: String =
+    s"""q
+    |BT
+    |0.5 G
+    |0.5 g
+    |/Helvetica 30 Tf
+    |1 0 0 1 300 400 Tm
+    |(HELLO) Tj
+    |ET
+    |Q""".stripMargin
 
   def content: IndirectObj =
-    IndirectObj.stream(5, Prim.dict(), BitVector.empty)
+    IndirectObj.stream(5, Prim.dict(), Scodec.stringBits(contentStream))
 
   val objects: Stream[IO, IndirectObj] =
     Stream(
       page(1, 5),
       catalog,
-      IndirectObj.nostream(3, pages),
+      pages,
       page(4, 5),
       content,
     )
