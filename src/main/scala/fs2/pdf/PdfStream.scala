@@ -67,6 +67,25 @@ object PdfStream
     WritePdf.parts
 
   /**
+    * Convenience pipe combining de- and encoding with a transformation
+    *
+    * @param log a logger of type [[Log]]
+    * @param initial consumer state for the transformation
+    * @param collect stateful transformation of an element
+    * @param update finalizer for the collected state
+    * @return a byte [[Pipe]]
+    */
+  def transformElements[S]
+  (log: Log)
+  (initial: S)
+  (collect: RewriteState[S] => Element => Pull[IO, Part[Trailer], RewriteState[S]])
+  (update: RewriteUpdate[S] => Pull[IO, Part[Trailer], Unit])
+  : Pipe[IO, Byte, Byte] =
+    elements(log)
+      .andThen(Rewrite(initial)(collect)(update))
+      .andThen(StreamUtil.bytesPipe)
+
+  /**
     * This validation routine parses and inspects a PDF for errors.
     *
     * All references in /Content arrays are collected and the dereferenced objects are ensured to be content streams.
