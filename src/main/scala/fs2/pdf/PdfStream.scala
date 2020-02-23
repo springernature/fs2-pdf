@@ -112,4 +112,13 @@ object PdfStream
     */
   def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[CompareError, Unit]] =
     ComparePdfs.fromDecoded(decode(log)(old), decode(log)(updated))
+
+  def rewriteAndCompare[S]
+  (log: Log)
+  (initial: S)
+  (collect: RewriteState[S] => Element => Pull[IO, Part[Trailer], RewriteState[S]])
+  (update: RewriteUpdate[S] => Pull[IO, Part[Trailer], Unit])
+  (document: Stream[IO, Byte])
+  : IO[ValidatedNel[CompareError, Unit]] =
+    ComparePdfs.fromBytes(log)(document, transformElements(log)(initial)(collect)(update)(document))
 }
