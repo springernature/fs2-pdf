@@ -76,7 +76,7 @@ object PdfStream
     * @param bytes PDF data [[Stream]]
     * @return a list of errors in the PDF
     */
-  def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
+  def validate(log: Log)(bytes: Stream[IO, Byte]): IO[ValidatedNel[PdfError, Unit]] =
     ValidatePdf.fromDecoded(decode(log)(bytes))
 
   /**
@@ -91,6 +91,6 @@ object PdfStream
     * @param updated the PDF after the transformation
     * @return a list of differences of the two PDFs
     */
-  def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[String, Unit]] =
+  def compare(log: Log)(old: Stream[IO, Byte], updated: Stream[IO, Byte]): IO[ValidatedNel[CompareError, Unit]] =
     ComparePdfs.fromDecoded(decode(log)(old), decode(log)(updated))
 }

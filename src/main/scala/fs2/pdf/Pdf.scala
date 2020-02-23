@@ -5,7 +5,7 @@ import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.IO
 import fs2.{Pipe, Pull, Stream}
 import scodec.Attempt
-import scodec.bits.{BitVector, ByteVector}
+import scodec.bits.BitVector
 
 sealed trait PdfObj
 
@@ -16,14 +16,11 @@ object PdfObj
 
   case class Data(obj: Obj)
   extends PdfObj
-
-  case class Unparsable(index: Obj.Index, data: ByteVector)
-  extends PdfObj
 }
 
 case class Pdf(objs: NonEmptyList[PdfObj], xrefs: NonEmptyList[Xref], trailer: Trailer)
 
-case class ValidatedPdf(pdf: Pdf, errors: ValidatedNel[String, Unit])
+case class ValidatedPdf(pdf: Pdf, errors: ValidatedNel[AssemblyError, Unit])
 
 object Pdf
 {
@@ -97,63 +94,91 @@ object Pdf
   def dictOfObj(number: Long): Pipe[IO, Byte, Map[String, Prim]] =
     objectNumbers(List(number))(_)
       .collect { case (Obj(_, Prim.Dict(data)), _) => data }
+}
 
-  object Assemble
+sealed trait AssemblyError
+
+object AssemblyError
+{
+  case object NoObjs
+  extends AssemblyError
+
+  case object NoXrefs
+  extends AssemblyError
+
+  case object NoOutput
+  extends AssemblyError
+
+  case class BrokenStream(obj: Obj, error: String)
+  extends AssemblyError
+
+  def format: AssemblyError => String = {
+    case NoObjs =>
+      "no objects in pdf"
+    case NoXrefs =>
+      "no xrefs in pdf"
+    case NoOutput =>
+      "no output from Assemble"
+    case BrokenStream(obj, error) =>
+      s"broken stream for ${obj.index}: $error"
+  }
+}
+
+object AssemblePdf
+{
+  case class AssemblyState(objs: List[PdfObj], xrefs: List[Xref], errors: List[AssemblyError])
   {
-    case class AssemblyState(objs: List[PdfObj], xrefs: List[Xref], errors: List[String])
-    {
-      def obj(o: PdfObj): AssemblyState =
-        copy(objs = o :: objs)
+    def obj(o: PdfObj): AssemblyState =
+      copy(objs = o :: objs)
 
-      def error(e: String): AssemblyState =
-        copy(errors = e :: errors)
+    def error(e: AssemblyError): AssemblyState =
+      copy(errors = e :: errors)
+  }
+
+  def processDecoded(state: AssemblyState): Decoded => AssemblyState = {
+    case Decoded.ContentObj(obj, _, stream) =>
+      stream.exec match {
+        case Attempt.Successful(s) =>
+          state.obj(PdfObj.Content(IndirectObj(obj, Some(s))))
+        case Attempt.Failure(cause) =>
+          state.error(AssemblyError.BrokenStream(obj, cause.messageWithContext))
+      }
+    case Decoded.Meta(xrefs, _, _) =>
+      state.copy(xrefs = xrefs.toList)
+    case Decoded.DataObj(obj) =>
+      state.obj(PdfObj.Data(obj))
+    case _ =>
+      state
+  }
+
+  def processDecodedPull(state: AssemblyState)(parsed: Decoded): Pull[IO, Nothing, AssemblyState] =
+    Pull.pure(processDecoded(state)(parsed))
+
+  def consPdf(objs: List[PdfObj], xrefs: List[Xref]): Validated[AssemblyError, Pdf] =
+    (NonEmptyList.fromList(objs.reverse), NonEmptyList.fromList(xrefs.reverse)) match {
+      case (Some(o), Some(x)) =>
+        Validated.Valid(Pdf(o, x, Trailer.sanitize(x.map(_.trailer))))
+      case (None, _) =>
+        Validated.Invalid(AssemblyError.NoObjs)
+      case (_, None) =>
+        Validated.Invalid(AssemblyError.NoXrefs)
     }
 
-    def processDecoded(state: AssemblyState): Decoded => AssemblyState = {
-      case Decoded.ContentObj(obj, _, stream) =>
-        stream.exec match {
-          case Attempt.Successful(s) =>
-            state.obj(PdfObj.Content(IndirectObj(obj, Some(s))))
-          case Attempt.Failure(cause) =>
-            state.error(s"broken stream for ${obj.index}: ${cause.messageWithContext}")
-        }
-      case Decoded.Meta(xrefs, _, _) =>
-        state.copy(xrefs = xrefs.toList)
-      case Decoded.DataObj(obj) =>
-        state.obj(PdfObj.Data(obj))
-      case _ =>
-        state
-    }
+  def validateErrors[A](errors: List[A]): ValidatedNel[A, Unit] =
+    NonEmptyList.fromList(errors)
+      .fold(Validated.validNel[A, Unit](()))(Validated.invalid(_))
 
-    def processDecodedPull(state: AssemblyState)(parsed: Decoded): Pull[IO, Nothing, AssemblyState] =
-      Pull.pure(processDecoded(state)(parsed))
-
-    def consPdf(objs: List[PdfObj], xrefs: List[Xref]): Validated[String, Pdf] =
-      (NonEmptyList.fromList(objs.reverse), NonEmptyList.fromList(xrefs.reverse)) match {
-        case (Some(o), Some(x)) =>
-          Validated.Valid(Pdf(o, x, Trailer.sanitize(x.map(_.trailer))))
-        case (None, _) =>
-          Validated.Invalid("no objects in pdf")
-        case (_, None) =>
-          Validated.Invalid("no xrefs in pdf")
+  def pull(parsed: Stream[IO, Decoded]): Pull[IO, ValidatedNel[AssemblyError, ValidatedPdf], Unit] =
+    StreamUtil.pullState(processDecodedPull)(parsed)(AssemblyState(Nil, Nil, Nil))
+      .flatMap {
+        case AssemblyState(objs, xrefs, errors) =>
+          Pull.output1(consPdf(objs, xrefs).toValidatedNel.map(ValidatedPdf(_, validateErrors(errors))))
       }
 
-    def validateErrors(errors: List[String]): ValidatedNel[String, Unit] =
-      NonEmptyList.fromList(errors)
-        .fold(Validated.validNel[String, Unit](()))(Validated.invalid(_))
-
-    def pull(parsed: Stream[IO, Decoded]): Pull[IO, ValidatedNel[String, ValidatedPdf], Unit] =
-      StreamUtil.pullState(processDecodedPull)(parsed)(AssemblyState(Nil, Nil, Nil))
-        .flatMap {
-          case AssemblyState(objs, xrefs, errors) =>
-            Pull.output1(consPdf(objs, xrefs).toValidatedNel.map(ValidatedPdf(_, validateErrors(errors))))
-        }
-
-    def apply(parsed: Stream[IO, Decoded]): IO[ValidatedNel[String, ValidatedPdf]] =
-      pull(parsed)
-        .stream
-        .compile
-        .last
-        .map(_.getOrElse(Validated.invalidNel("no output from Assemble")))
-  }
+  def apply(parsed: Stream[IO, Decoded]): IO[ValidatedNel[AssemblyError, ValidatedPdf]] =
+    pull(parsed)
+      .stream
+      .compile
+      .last
+      .map(_.getOrElse(Validated.invalidNel(AssemblyError.NoOutput)))
 }
