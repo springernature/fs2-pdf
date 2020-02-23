@@ -77,5 +77,6 @@ then
   echo ''
   trigger_publish
 else
+  echo ''
   echo '>>> Aborted by user.'
 fi
