@@ -239,8 +239,8 @@ object ComparePdfs
             .leftMap(_.map(CompareError.Assembly(_)))
             .combine(ValidatePdf(updated.pdf).leftMap(_.map(CompareError.Validation(_))))
             .combine(compared)
-        case (_, _) =>
-          ???
+        case (a, b) =>
+          a.product(b).void.leftMap(_.map(CompareError.Assembly(_)))
       }
 
   def fromBytes
