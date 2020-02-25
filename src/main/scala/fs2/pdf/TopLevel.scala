@@ -84,7 +84,10 @@ object TopLevel
     * @return [[Decoder]] for [[TopLevel]]
     */
   def streamDecoder: Decoder[TopLevel] =
-    Decoder(bits => Decoder_TopLevel.decode(bits).mapErr(e => Err.InsufficientBits(0, 0, e.context)))
+    Decoder(bits => Decoder_TopLevel.decode(bits).mapErr {
+      e =>
+        Err.InsufficientBits(0, 0, e.context)
+    })
 
   def pipe: Pipe[IO, BitVector, TopLevel] =
     StreamDecoder.many(streamDecoder).toPipe

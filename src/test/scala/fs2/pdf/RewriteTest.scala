@@ -10,10 +10,10 @@ extends Specification
   def pipe(log: Log): Pipe[IO, Byte, Unit] =
     PdfStream.elements(log)
       .andThen(Element.encode)
-      .andThen(Write.bytes("test-out.pdf"))
+      .andThen(Write.bytes("books/test-out.pdf"))
 
   "parse pdf" >>
-  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/comm")(pipe))
+  ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/mod")(pipe))
     .unsafeRunSync
     .must_==(())
 }

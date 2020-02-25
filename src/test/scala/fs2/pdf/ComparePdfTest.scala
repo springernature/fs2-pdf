@@ -10,23 +10,23 @@ extends Specification
 {
   import ValidatedMatcher.beValid
 
-  def report: ValidatedNel[String, Unit] => ValidatedNel[String, Unit] = {
+  def report: ValidatedNel[CompareError, Unit] => ValidatedNel[String, Unit] = {
     case Validated.Valid(()) => Validated.Valid(())
     case Validated.Invalid(errors) =>
       errors.toList.foreach(println)
       Validated.invalidNel(s"${errors.size} errors")
   }
 
-//   "validate" >>
-//   ProcessJarPdf.processWithIO("books/broken-biomech") { _ => updated =>
-//     ProcessJarPdf.processWithIO("books/biomech") { log => old =>
-//       PdfStream.compare(log)(old, updated)
-//     }.value
-//   }
-//     .value
-//     .unsafeRunSync
-//     .flatten
-//     .map(report)
-//     .as(())
-//     .must(beRight(()))
+  "validate" >>
+  ProcessJarPdf.processWithIO("books/broken-masch") { _ => updated =>
+    ProcessJarPdf.processWithIO("books/masch") { log => old =>
+      PdfStream.compare(log)(old, updated)
+    }.value
+  }
+    .value
+    .unsafeRunSync
+    .flatten
+    .map(report)
+    .as(())
+    .must(beRight(()))
 }

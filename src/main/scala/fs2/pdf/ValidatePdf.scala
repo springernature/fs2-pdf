@@ -5,6 +5,7 @@ import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.IO
 import cats.implicits._
 import scodec.Attempt
+import scodec.bits.BitVector
 
 case class ContentRef(owner: Long, target: Long)
 
@@ -150,8 +151,7 @@ object ValidatePdf
       .andThen(cat => att(PdfError.NoPagesInCatalog)(Prim.Dict.path("Pages")(cat.obj.data)( { case r @ Prim.Ref(_, _) => r } )))
       .andThen(rootRef => opt(PdfError.NoPageRoot)(byNumber.lift(rootRef.number)))
       .andThen(collectPages(byNumber))
-      .andThen { a =>
-        println(a)
+      .andThen { _ =>
         Validated.valid(())
       }
   }
@@ -213,6 +213,13 @@ object CompareError
 
 object ComparePdfs
 {
+  def streamRepr(old: BitVector, updated: BitVector): Prim => String = {
+    case Prim.tpe("XObject", _) =>
+      s"xobjects with size ${old.size} => ${updated.size}"
+    case _ =>
+      ""
+  }
+
   def compareObjs: ((Long, (Option[IndirectObj], Option[IndirectObj]))) => ValidatedNel[CompareError, Unit] = {
     case (num, (Some(IndirectObj(Obj(_, data), Some(_))), Some(IndirectObj(_, None)))) =>
       Validated.invalidNel(CompareError.DeletedStream(num, data))
@@ -220,6 +227,8 @@ object ComparePdfs
       Validated.invalidNel(CompareError.ObjectMissing(num, obj))
     case (num, (None, Some(obj))) =>
       Validated.invalidNel(CompareError.ObjectAdded(num, obj))
+    // case (num, (Some(IndirectObj(Obj(_, _), Some(old))), Some(IndirectObj(Obj(_, data), Some(updated))))) if old != updated =>
+    //   Validated.invalidNel(s"object $num has different stream:\n${streamRepr(old, updated)(data)}")
     case (_, (Some(_), Some(_))) =>
       Validated.Valid(())
   }

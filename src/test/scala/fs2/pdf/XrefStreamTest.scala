@@ -12,7 +12,7 @@ extends Specification
     PdfStream.elements(log)
       .andThen(Element.encode)
 
-  "parse pdf" >>
+  "parse an xref stream" >>
   ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("xref-stream")(pipe))
     .unsafeRunSync
     .must_==(())
