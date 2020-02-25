@@ -95,7 +95,7 @@ extends XrefCodec
 
 trait XrefCodec
 {
-  import scodec.codecs.{choice, listOfN, provide, optional, bitsRemaining}
+  import scodec.codecs.{choice, listOfN, provide}
   import Newline.{lf, crlf, newline}
   import Whitespace.{nlWs, ws, space, skipWs}
   import Text.{stringOf, ascii, str}
@@ -161,16 +161,12 @@ trait XrefCodec
   def tables: Codec[NonEmptyList[Xref.Table]] =
     Many.tillDecodes1(trailerKw)(table).withContext("xref tables")
 
-  def eof: Codec[Unit] =
-    str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
-
   implicit def Codec_Xref: Codec[Xref] =
     (
       (str("xref") ~> nlWs) ~>
       tables ::
       (skipWs ~> Codec_Trailer) ::
-      startxref <~
-      eof
+      startxref
     ).as[Xref]
 }
 
@@ -178,11 +174,15 @@ case class StartXref(offset: Long)
 
 object StartXref
 {
+  import scodec.codecs.{optional, bitsRemaining}
   import Text.{str, ascii}
   import Whitespace.nlWs
 
+  def eof: Codec[Unit] =
+    str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
+
   implicit def Codec_StartXref: Codec[StartXref] =
-    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
+    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs <~ eof)
       .withContext("startxref")
       .as[StartXref]
 }
