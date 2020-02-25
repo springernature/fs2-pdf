@@ -29,7 +29,24 @@ object Trailer
     }
 }
 
-case class Xref(tables: NonEmptyList[Xref.Table], trailer: Trailer, startxref: Long)
+case class StartXref(offset: Long)
+
+object StartXref
+{
+  import scodec.codecs.{optional, bitsRemaining}
+  import Text.{str, ascii}
+  import Whitespace.nlWs
+
+  def eof: Codec[Unit] =
+    str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
+
+  implicit def Codec_StartXref: Codec[StartXref] =
+    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs <~ eof)
+      .withContext("startxref")
+      .as[StartXref]
+}
+
+case class Xref(tables: NonEmptyList[Xref.Table], trailer: Trailer, startxref: StartXref)
 
 object Xref
 extends XrefCodec
@@ -145,10 +162,6 @@ trait XrefCodec
   def Codec_Trailer: Codec[Trailer] =
     trailerKw ~> trailerDict <~ nlWs
 
-  def startxref: Codec[Long] =
-    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs)
-      .withContext("startxref")
-
   def table: Codec[Xref.Table] =
     range.withContext("range")
       .flatZip { case (_, size) => listOfN(provide(size), entry).withContext("entries") }
@@ -166,23 +179,6 @@ trait XrefCodec
       (str("xref") ~> nlWs) ~>
       tables ::
       (skipWs ~> Codec_Trailer) ::
-      startxref
+      StartXref.Codec_StartXref
     ).as[Xref]
-}
-
-case class StartXref(offset: Long)
-
-object StartXref
-{
-  import scodec.codecs.{optional, bitsRemaining}
-  import Text.{str, ascii}
-  import Whitespace.nlWs
-
-  def eof: Codec[Unit] =
-    str("%%EOF") <~ optional(bitsRemaining, nlWs).unit(Some(()))
-
-  implicit def Codec_StartXref: Codec[StartXref] =
-    (str("startxref") ~> nlWs ~> ascii.long.withContext("startxref offset") <~ nlWs <~ eof)
-      .withContext("startxref")
-      .as[StartXref]
 }

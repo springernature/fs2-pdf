@@ -75,6 +75,9 @@ object Text
   def sanitize(data: ByteVector): String =
     sanitizedLatin.decode(data.bits).map(_.value).getOrElse("unparsable")
 
+  def sanitizeBits(data: BitVector): String =
+    sanitize(data.bytes)
+
   private[pdf]
   val lineDecoder: Decoder[ByteVector] =
     Decoder { bits =>

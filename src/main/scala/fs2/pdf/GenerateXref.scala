@@ -65,6 +65,6 @@ object GenerateXref
       if (fromZero) Xref.Entry.freeHead :: entries
       else entries
     val tableOffset = if (fromZero) 0L else firstNumber
-    Xref(NonEmptyList.one(Xref.Table(tableOffset, withFree)), trailer, startxref)
+    Xref(NonEmptyList.one(Xref.Table(tableOffset, withFree)), trailer, StartXref(startxref))
   }
 }

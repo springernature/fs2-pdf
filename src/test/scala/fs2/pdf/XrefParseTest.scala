@@ -29,7 +29,7 @@ extends Specification
     Xref(
       NonEmptyList.one(Xref.Table(0, NonEmptyList.one(Xref.Entry(index, Xref.EntryType.InUse)))),
       Trailer(1, Prim.dict("Size" -> Prim.num(1)), None),
-      1,
+      StartXref(1),
     )
 
   "xref" >>

@@ -18,7 +18,7 @@ object Generate
     val sorted = entries.sortBy(_._1)
     val free = Xref.entry(0, 65535, Xref.EntryType.Free)
     val tables = NonEmptyList.one(Xref.Table(0, NonEmptyList(free, sorted.map(_._2))))
-    Xref(tables, Trailer(sorted.size + 1, trailer, Some(Prim.Ref(1, 0))), startxref)
+    Xref(tables, Trailer(sorted.size + 1, trailer, Some(Prim.Ref(1, 0))), StartXref(startxref))
   }
 
   def encodeWithXref

@@ -30,7 +30,7 @@ object Decode
   def extractMetadata(stream: Uncompressed)
   : Prim => Option[Attempt[Either[Xref, List[Decoded]]]] = {
     case Prim.tpe("XRef", data) =>
-      Some(stream.exec.flatMap(XrefStream(data)).map(xs => Left(Xref(xs.tables, xs.trailer, 0))))
+      Some(stream.exec.flatMap(XrefStream(data)).map(xs => Left(Xref(xs.tables, xs.trailer, StartXref(0L)))))
     case _ =>
       None
   }
@@ -48,13 +48,13 @@ object Decode
   def contentObj
   (state: State)
   (index: Obj.Index, data: Prim, stream: BitVector)
-  : Pull[IO, Decoded, State] =
-    StreamUtil.attemptPullWith("extract stream objects")(
-      analyzeStream(index, data)(stream, Content.uncompress(stream)(data))
-    ) {
+  : Pull[IO, Decoded, State] = {
+    val attempt = analyzeStream(index, data)(stream, Content.uncompress(stream)(data))
+    StreamUtil.attemptPullWith("extract stream objects")(attempt) {
       case Right(decoded) => Pull.output(Chunk.seq(decoded)).as(state)
       case Left(xref) => Pull.pure(state.copy(xrefs = xref :: state.xrefs))
     }
+  }
 
   private[pdf]
   def pullTopLevel(state: State): TopLevel => Pull[IO, Decoded, State] = {
