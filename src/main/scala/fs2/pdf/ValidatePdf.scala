@@ -127,8 +127,8 @@ object ValidatePdf
       }
     spin(root).andThen {
       case (_, Nil) => Validated.invalidNel(PdfError.NoPages)
-      case (page1, pages1 :: pagestail) =>
-        Validated.valid((page1, NonEmptyList(pages1, pagestail)))
+      case (page1s, pages1 :: pagestail) =>
+        Validated.valid((page1s, NonEmptyList(pages1, pagestail)))
     }
   }
 
