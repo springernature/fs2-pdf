@@ -24,4 +24,8 @@ extends Specification
 
   // "validate" >>
   // ProcessJarPdf.processWithIO("books/broken-comm")(PdfStream.validate).value.map(a => a.must(beRight(beValid))).unsafeRunSync
+
+  "validate empty kids" >>
+    ProcessJarPdf.processWithIO("empty-kids")(PdfStream.validate)
+      .value.map(a => a.must(beRight(beValid))).unsafeRunSync
 }
