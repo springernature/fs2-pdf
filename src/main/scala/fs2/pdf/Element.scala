@@ -1,7 +1,6 @@
 package fs2
 package pdf
 
-import cats.data.NonEmptyList
 import cats.effect.IO
 import scodec.Attempt
 import scodec.bits.{BitVector, ByteVector}
@@ -47,7 +46,7 @@ object Page
   * @param kids children of this Pages object, forming a balanced tree with page numbers going left-to-right
   * @param root whether this object is the root referenced in the trailer
   */
-case class Pages(index: Obj.Index, data: Prim.Dict, kids: NonEmptyList[Prim.Ref], root: Boolean)
+case class Pages(index: Obj.Index, data: Prim.Dict, kids: List[Prim.Ref], root: Boolean)
 
 /**
   * Helpers for extracting a [[Pages]] record from an [[IndirectObj]] or its components.

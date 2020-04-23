@@ -16,4 +16,9 @@ extends Specification
   ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("books/comm")(pipe))
     .unsafeRunSync
     .must_==(())
+
+  "parse pdf with empty kids" >>
+    ProcessJarPdf.ignoreError(ProcessJarPdf.processWith("empty-kids")(pipe))
+      .unsafeRunSync
+      .must_==(())
 }
