@@ -249,7 +249,7 @@ extends PrimCodec
           elems.collect {
             case r@Ref(_, _) => Some(r)
             case _ => None
-          }.traverse(identity)
+          }.sequence
         case _ =>
           None
       }
