@@ -8,7 +8,7 @@ the memory footprint due to large images and imposing a hard boundary for the do
 ## Module ID
 
 ```sbt
-"com.springernature" %% "fs2-pdf" %  "0.1.0-RC7"
+"com.springernature" %% "fs2-pdf" %  "0.1.0-RC8"
 ```
 
 # Usage
