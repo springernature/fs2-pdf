@@ -49,7 +49,7 @@ object Pdf
       .through(PdfStream.elements(Log.noop))
       .collect {
         case Element.Data(_, Element.DataKind.Pages(Pages(_, _, kids, _))) =>
-          kids.toList.lift(page).map(_.number)
+          kids.lift(page).map(_.number)
       }
       .collect { case Some(a) => a }
       .head

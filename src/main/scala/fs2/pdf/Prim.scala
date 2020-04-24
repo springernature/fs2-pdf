@@ -3,7 +3,6 @@ package pdf
 
 import scala.util.Try
 
-import cats.data.NonEmptyList
 import cats.implicits._
 import codec.{Codecs, Many, Text, Whitespace}
 import scodec.{Attempt, Codec, DecodeResult, Decoder, Encoder, Err}
@@ -243,18 +242,14 @@ extends PrimCodec
       tryDict("Linearized")(data).isDefined
   }
 
-  object refs
-  {
-    def unapply(data: Prim): Option[NonEmptyList[Ref]] =
+  object refs {
+    def unapply(data: Prim): Option[List[Ref]] =
       data match {
         case Prim.Array(elems) =>
-          NonEmptyList.fromList(elems)
-            .flatMap(
-              _.traverse {
-                case r @ Ref(_, _) => Some(r)
-                case _ => None
-              }
-            )
+          elems.collect {
+            case r@Ref(_, _) => Some(r)
+            case _ => None
+          }.sequence
         case _ =>
           None
       }

@@ -36,9 +36,6 @@ object PdfError
   case object NoPages
   extends PdfError
 
-  case object EmptyPages
-  extends PdfError
-
   case object NoRoot
   extends PdfError
 
@@ -64,8 +61,6 @@ object PdfError
       s"object $obj is neither Pages nor Page"
     case NoPages =>
       "no Pages objects in the catalog"
-    case EmptyPages =>
-      "no Page objects in a page tree"
     case NoRoot =>
       "no Root in trailer"
     case NoCatalog =>
@@ -116,7 +111,7 @@ object ValidatePdf
   }
 
   def collectPages(byNumber: Map[Long, IndirectObj])(root: IndirectObj)
-  : ValidatedNel[PdfError, (NonEmptyList[Page], NonEmptyList[Pages])] = {
+  : ValidatedNel[PdfError, (List[Page], NonEmptyList[Pages])] = {
     def spin(obj: IndirectObj): ValidatedNel[PdfError, (List[Page], List[Pages])] =
       obj match {
         case Pages.obj(pages @ Pages(_, _, kids, _)) =>
@@ -132,9 +127,8 @@ object ValidatePdf
       }
     spin(root).andThen {
       case (_, Nil) => Validated.invalidNel(PdfError.NoPages)
-      case (Nil, _) => Validated.invalidNel(PdfError.EmptyPages)
-      case (page1 :: pagetail, pages1 :: pagestail) =>
-        Validated.valid((NonEmptyList(page1, pagetail), NonEmptyList(pages1, pagestail)))
+      case (page1s, pages1 :: pagestail) =>
+        Validated.valid((page1s, NonEmptyList(pages1, pagestail)))
     }
   }
 
