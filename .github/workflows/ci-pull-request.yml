@@ -1,0 +1,57 @@
+# Generated using halfpipe cli version 3.82.0
+name: ci-pull-request
+"on":
+  pull_request:
+    branches:
+    - master
+    paths:
+    - src**
+    - '*.sbt**'
+    - project**
+    - ops**
+    - .github/workflows/ci-pull-request.yml
+  workflow_dispatch: {}
+env:
+  ARTIFACTORY_PASSWORD: ${{ secrets.EE_ARTIFACTORY_PASSWORD }}
+  ARTIFACTORY_URL: ${{ secrets.EE_ARTIFACTORY_URL }}
+  ARTIFACTORY_USERNAME: ${{ secrets.EE_ARTIFACTORY_USERNAME }}
+  BUILD_VERSION: 2.${{ github.run_number }}.0
+  GIT_REVISION: ${{ github.sha }}
+  RUNNING_IN_CI: "true"
+  VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+  VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+concurrency: ${{ github.workflow }}
+jobs:
+  test:
+    name: test
+    runs-on: ee-runner
+    timeout-minutes: 60
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: test
+      run: |-
+        docker-compose -f ops/docker-compose.yml pull
+        docker-compose -f ops/docker-compose.yml run \
+          -e ARTIFACTORY_PASSWORD \
+          -e ARTIFACTORY_URL \
+          -e ARTIFACTORY_USERNAME \
+          -e BUILD_VERSION \
+          -e GIT_REVISION \
+          -e RUNNING_IN_CI \
+          -e VAULT_ROLE_ID \
+          -e VAULT_SECRET_ID \
+          -v /mnt/halfpipe-cache/sprcom:/var/halfpipe/shared-cache \
+          build \
+          ops/test.bash
+    - name: Docker cleanup
+      if: always()
+      run: docker-compose -f ops/docker-compose.yml down
+    - name: 'Notify slack #spring-deployments (failure)'
+      if: failure()
+      uses: yukin01/slack-bot-action@v0.0.4
+      with:
+        status: ${{ job.status }}
+        oauth_token: ${{ secrets.EE_SLACK_TOKEN }}
+        channel: '#spring-deployments'
+        text: ""

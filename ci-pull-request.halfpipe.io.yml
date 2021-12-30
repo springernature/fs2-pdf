@@ -1,0 +1,23 @@
+team: sprcom
+pipeline: ci-pull-request
+slack_channel: '#spring-deployments'
+platform: actions
+
+feature_toggles:
+  - update-pipeline
+
+triggers:
+  - type: git
+    watched_paths:
+      - src
+      - "*.sbt"
+      - project
+      - ops
+
+tasks:
+  - type: docker-compose
+    name: test
+    compose_file: ops/docker-compose.yml
+    service: build
+    command: ops/test.bash
+
