@@ -1,6 +1,6 @@
 team: sprcom
 pipeline: fs2-pdf
-slack_channel: '#sprcom-janitors'
+slack_channel: '#spring-deployments'
 tasks:
 - type: docker-compose
   name: test
