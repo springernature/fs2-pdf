@@ -1,6 +1,6 @@
 team: sprcom
 pipeline: fs2-pdf
-slack_channel: '#ecommerce-deployments'
+slack_channel: '#shopzilla-deployments'
 tasks:
 - type: docker-compose
   name: test
