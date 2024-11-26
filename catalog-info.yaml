@@ -1,0 +1,21 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: fs2-pdf
+  title: FS2 PDF
+  description: Scala library for manipulating PDF files in fs2 streams using scodec for parsing.
+    - scala
+  annotations:
+    github.com/project-slug: springernature/fs2-pdf
+    concourse.halfpipe.io/pipeline-name: sprcom/fs2-pdf
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: shared-library
+  owner: sprcom
+  lifecycle: production
+# system: TODO: add which system this belongs to when we have defined them
+# dependsOn: TODO: add dependent components and resources once defined
+#   - Component:
+#   - Resource:
+#  providesApis:
+#   TODO add api entity names once created%  
