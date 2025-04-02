@@ -1,4 +1,19 @@
-# About
+# :warning: Repository Status: No Longer Maintained
+
+Thank you for your interest in **fs2-pdf**!
+
+Unfortunately, this project is no longer actively maintained. While the code will remain available, no further updates, bug fixes, or support will be provided.
+
+# :question: What Does This Mean?
+
+* The repository will be **archived**, making it **read-only**.
+* You are still welcome to fork the repository and use the code as needed.
+* No new issues, pull requests, or discussions will be accepted.
+
+# :raised_hands: Thank You!
+We appreciate everyone who contributed, used, and supported this project.
+
+## About
 
 **fs2-pdf** is a Scala library for manipulating PDF files in [fs2] streams using [scodec] for parsing.
 
